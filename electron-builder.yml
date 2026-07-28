@@ -1,0 +1,52 @@
+appId: com.pedropasin.atelie
+productName: Ateliê
+copyright: © Pedro Pasin
+
+directories:
+  output: release
+  buildResources: build
+
+# Só o essencial vai para o pacote: o bundle Electron, a UI compilada e o
+# package.json (para "main" + versão). O motor já está EMBUTIDO no main.cjs pelo
+# esbuild, então node_modules não precisa ser empacotado.
+files:
+  - dist-electron/**
+  - ui/dist/**
+  - package.json
+
+# O servidor Fastify serve ui/dist do disco (createReadStream/@fastify/static).
+# Ler estáticos de dentro do asar é problemático → desligamos o asar no MVP.
+# Custo: arquivos ficam soltos em resources/app/ (aceitável para app interno).
+asar: false
+
+# NOTA (MVP): as CLIs (codex/claude/agy) e o wrapper gpt-image-2 (WRAPPER_CJS,
+# resolvido por caminho ABSOLUTO em src/config.ts) NÃO são empacotados — são do
+# usuário, instalados e logados por ele. Quando formos empacotar o wrapper,
+# usar `extraResources` e trocar WRAPPER_CJS por um caminho relativo a
+# process.resourcesPath. Ver docs/DESKTOP_ARCHITECTURE.md.
+# extraResources:
+#   - from: ../gpt-image-2-skill/skills/gpt-image-2-skill
+#     to: gpt-image-2-skill
+
+win:
+  target:
+    - nsis
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.graphics-design
+
+linux:
+  target:
+    - AppImage
+  category: Graphics
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+publish:
+  provider: github
+  owner: pedropasinn
+  repo: atelie

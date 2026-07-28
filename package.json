@@ -1,0 +1,44 @@
+{
+  "name": "atelie",
+  "version": "0.1.0",
+  "description": "Ateliê — esteira de geração de imagens (gpt-image-2 via Codex) com juiz Claude multimodal e loop de melhoria",
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "bin": {
+    "atelie": "./src/cli.tsx"
+  },
+  "scripts": {
+    "start": "tsx src/cli.tsx",
+    "serve": "tsx src/server/serve.ts",
+    "web": "npm run ui:build && tsx src/server/serve.ts --port 4177",
+    "typecheck": "tsc --noEmit",
+    "test": "bash tests/run.sh",
+    "ui:build": "npm --prefix ui run build",
+    "desktop:build": "node scripts/build-desktop.mjs",
+    "desktop:dev": "npm run ui:build && npm run desktop:build && electron .",
+    "dist": "npm run ui:build && npm run desktop:build && electron-builder"
+  },
+  "dependencies": {
+    "@fastify/static": "^9.3.0",
+    "@fastify/websocket": "^11.3.0",
+    "fastify": "^5.10.0",
+    "ink": "^5.1.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "meow": "^13.2.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3",
+    "electron-updater": "^6.8.9",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

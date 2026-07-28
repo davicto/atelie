@@ -1,0 +1,14 @@
+node_modules/
+sessions/
+*.log
+.DS_Store
+
+# saídas de geração (imagens/execuções locais), não fazem parte do código
+quadros/
+davi/
+
+# build da casca desktop / empacotamento
+dist-electron/
+release/
+ui/dist/
+ui/node_modules/

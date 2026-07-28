@@ -1,0 +1,41 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: macos-latest
+          - os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar deps (raiz)
+        run: npm ci
+
+      - name: Instalar deps (ui)
+        run: npm ci --prefix ui
+
+      # `npm run dist` = ui:build && desktop:build && electron-builder.
+      # O `-- --publish always` é anexado ao fim → electron-builder publica no
+      # GitHub Releases (feed configurado em electron-builder.yml).
+      - name: Empacotar e publicar
+        run: npm run dist -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

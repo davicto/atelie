@@ -1,0 +1,103 @@
+# Ateliê
+
+Esteira interativa (TUI) de geração de imagens de qualidade com **GPT Image 2**, orquestrada pela
+**Codex CLI** (auth do ChatGPT, sem `OPENAI_API_KEY`), com um **juiz Claude multimodal** que vê cada
+imagem e um **loop de melhoria** guiado por você.
+
+Consolida as técnicas dos 4 projetos em `../` (garden-skills, GPT-Image2-Skill, gpt-image-2-skill,
+awesome-gpt-image) numa galeria de **29 estilos fixos** com templates de prompt prontos.
+
+## Fluxo
+1. Você digita o pedido em linguagem natural.
+2. Escolhe um ou mais **estilos** da galeria (multi-seleção).
+3. Escolhe **N** versões (distribuídas entre os estilos escolhidos em round-robin).
+4. As imagens são geradas via Codex (`gpt-image-2`), com progresso ao vivo.
+5. O **juiz Claude** vê cada PNG e devolve um veredito: nota, alinhamento, problemas, uma
+   `sugestão de melhoria` e um `prompt reescrito`.
+6. Você decide se quer melhorar. Se sim, o prompt é recomposto (mantendo o sujeito-âncora) e a
+   imagem passa de novo pelo caminho de geração + validação. Loop.
+
+## Requisitos
+- `node >= 20`, deps já instaladas (`npm install` se faltar `node_modules`).
+- Codex CLI logado (auth ChatGPT em `~/.codex/auth.json`). Teste: `npm start -- --doctor`.
+- `claude` CLI na PATH (o juiz usa `claude -p --input-format stream-json`).
+- O binário do `gpt-image-2-skill` faz bootstrap sozinho na primeira geração.
+
+## Uso
+```bash
+npm start                 # abre a TUI (precisa de um terminal real — usa raw mode)
+```
+
+### Subcomandos de debug (não-interativos)
+```bash
+npm start -- --doctor
+npm start -- --gen-one --style fotorrealista --prompt "um gato de óculos lendo jornal" [--quality low|medium|high]
+npm start -- --judge-file <png> --request "um gato de óculos lendo jornal" [--style fotorrealista] [--model sonnet]
+```
+
+## Configuração (env)
+| Var | Default | Efeito |
+|---|---|---|
+| `ATELIE_HOME` | `~/.atelie` | raiz de sessões/saídas |
+| `ATELIE_JUDGE_MODEL` | `sonnet` | modelo do juiz (visão) |
+| `ATELIE_CONCURRENCY` | `0` | jobs de geração em paralelo (`0` = todos de uma vez) |
+| `ATELIE_AUTO_OPEN` | `1` | abre a pasta publicada ao fim de cada geração (`0` desliga; na CLI, `--no-open`) |
+
+## Saídas
+Cada sessão vive em `~/.atelie/sessions/<id>/`:
+- `manifest.jsonl` — log append-only (`session_start`/`generate`/`verdict`/`iterate`/`session_end`)
+- `session.json` — snapshot para `--resume <id>`
+- `iter-NN/<estilo>-<i>.png` — as imagens
+
+## Estilos
+29 estilos em `src/styles/catalog.ts` (procedência em `src/styles/PROVENANCE.md`). Cada um tem um
+`template` com `{subject}/{scene}/{extra}` e defaults (tamanho/qualidade/aspecto/fundo). Propriedades
+de saída (tamanho/fundo/formato) vão sempre em **flags**, nunca no texto do prompt.
+
+## App Desktop
+
+O mesmo motor roda como app desktop (Electron), com a UI web servida em
+`127.0.0.1` numa porta efêmera. O processo main do Electron sobe o servidor Fastify
+in-process — sem `OPENAI_API_KEY`, a geração continua via CLIs do usuário.
+
+### Rodar em dev
+```bash
+npm run desktop:dev   # ui:build → desktop:build (esbuild) → electron .
+```
+Isso compila a UI (`ui/dist`), bundla `src/desktop/*` + servidor + motor para
+`dist-electron/main.cjs` e `preload.cjs`, e abre a janela.
+
+Para iterar só no bundle:
+```bash
+npm run ui:build       # compila a UI
+npm run desktop:build  # (re)gera dist-electron/*.cjs
+```
+
+### Empacotar (instaladores)
+```bash
+npm run dist   # ui:build → desktop:build → electron-builder
+```
+Gera em `release/`: **Windows** NSIS (`.exe`), **macOS** DMG, **Linux** AppImage
+(conforme o SO do build). Config em `electron-builder.yml`.
+
+Releases multiplataforma saem via CI: `git tag vX.Y.Z && git push --tags` dispara
+`.github/workflows/release.yml`, que builda em Win/Mac/Linux e publica no GitHub
+Releases (feed do `electron-updater`). Em produção o app checa update no start
+(`checkForUpdatesAndNotify`, no-op enquanto não há release publicada).
+
+### Requisitos (importante)
+As CLIs (`codex`/`claude`/`agy`) e o wrapper `gpt-image-2` **são do usuário** — não
+vêm empacotados no MVP. Precisam estar instalados e logados na máquina de destino.
+O caminho do wrapper (`WRAPPER_CJS` em `src/config.ts`) é absoluto; empacotá-lo
+(via `extraResources`) fica para uma fase futura. Ver `docs/DESKTOP_ARCHITECTURE.md`.
+
+Em produção não há `node` garantido na PATH: o main seta `ATELIE_NODE_BIN` para o
+próprio binário do Electron (`process.execPath`) e o motor spawna o wrapper com
+`ELECTRON_RUN_AS_NODE=1` (ver `src/lib/nodeBin.ts`). Em dev, sem essa env, usa `node`.
+
+## Notas técnicas (contrato verificado)
+Ver `BUILD_CONTRACT.md`. Pontos que importam:
+- `--provider codex` é flag **global** (antes do subcomando `images generate`).
+- Sob Codex, `--size` é uma **dica** (não honrado exato) e `--n` não existe → N versões = N chamadas.
+- Transparência (sticker/logo) usa o subcomando `transparent generate`.
+- O juiz costuma duplicar o texto de saída; o parser (`lib/jsonx.ts`) extrai o primeiro `{...}` balanceado.
