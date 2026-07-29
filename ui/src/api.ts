@@ -1,6 +1,8 @@
 import type {
   ClisResponse,
+  CodexAuth,
   Environment,
+  LoginEmCurso,
   FullSession,
   SessionSummary,
   Settings,
@@ -30,6 +32,9 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => req<{ ok: boolean }>('/api/health'),
   doctor: () => req<Environment>('/api/doctor'),
+  codexAuth: () => req<CodexAuth>('/api/auth/codex'),
+  codexLogin: () => req<LoginEmCurso>('/api/auth/codex/login', { method: 'POST' }),
+  codexLoginCancelar: () => req<{ ok: boolean }>('/api/auth/codex/cancelar', { method: 'POST' }),
   styles: () => req<StyleInfo[]>('/api/styles'),
   sessions: () => req<SessionSummary[]>('/api/sessions'),
   session: (id: string) => req<FullSession>(`/api/sessions/${encodeURIComponent(id)}`),

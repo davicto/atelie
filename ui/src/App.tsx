@@ -6,6 +6,7 @@ import Criar from './screens/Criar';
 import Serie from './screens/Serie';
 import Sessoes from './screens/Sessoes';
 import Config from './screens/Config';
+import Bemvindo from './screens/Bemvindo';
 
 type Route = 'dashboard' | 'criar' | 'serie' | 'sessoes' | 'config';
 
@@ -20,6 +21,21 @@ const NAV: Array<{ id: Route; label: string }> = [
 export default function App() {
   const [route, setRoute] = useState<Route>('dashboard');
   const [health, setHealth] = useState<'ok' | 'err' | 'idle'>('idle');
+  // `null` = ainda não sabemos se falta login; o wizard só some quando há sessão
+  // ChatGPT (ou quando o usuário escolhe seguir assim mesmo).
+  const [precisaOnboarding, setPrecisaOnboarding] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void api
+      .codexAuth()
+      .then((a) => alive && setPrecisaOnboarding(!a.logado))
+      // Se a sonda falhar, não bloqueamos o app: o Dashboard já reporta o ambiente.
+      .catch(() => alive && setPrecisaOnboarding(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -38,6 +54,8 @@ export default function App() {
       clearInterval(t);
     };
   }, []);
+
+  if (precisaOnboarding) return <Bemvindo onPronto={() => setPrecisaOnboarding(false)} />;
 
   return (
     <div className="shell">

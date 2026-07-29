@@ -24,6 +24,21 @@ export interface Environment {
   authMode: string;
 }
 
+// Onboarding: login ChatGPT pelo Codex CLI embutido (ver src/lib/codexCli.ts).
+export interface LoginEmCurso {
+  fase: 'iniciando' | 'aguardando-codigo' | 'concluido' | 'erro';
+  url?: string;
+  codigo?: string;
+  mensagem?: string;
+}
+export interface CodexAuth {
+  logado: boolean;
+  disponivel: boolean;
+  detalhe: string;
+  emCurso: LoginEmCurso | null;
+  binEmbutido: boolean;
+}
+
 export interface StyleInfo {
   id: string;
   nome: string;

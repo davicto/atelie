@@ -19,28 +19,66 @@ files:
 # Custo: arquivos ficam soltos em resources/app/ (aceitável para app interno).
 asar: false
 
-# NOTA (MVP): as CLIs (codex/claude/agy) e o wrapper gpt-image-2 (WRAPPER_CJS,
-# resolvido por caminho ABSOLUTO em src/config.ts) NÃO são empacotados — são do
-# usuário, instalados e logados por ele. Quando formos empacotar o wrapper,
-# usar `extraResources` e trocar WRAPPER_CJS por um caminho relativo a
-# process.resourcesPath. Ver docs/DESKTOP_ARCHITECTURE.md.
-# extraResources:
-#   - from: ../gpt-image-2-skill/skills/gpt-image-2-skill
-#     to: gpt-image-2-skill
+# O wrapper gpt-image-2 VAI no pacote (o usuário final não instala nada à mão).
+# Copiamos a árvore npm preservando o layout `node_modules/` porque o `index.cjs`
+# do pacote acha o binário da plataforma via `require.resolve` — de dentro de
+# `wrapper/node_modules/gpt-image-2-skill/` ele sobe um nível e encontra o pacote
+# de plataforma ao lado. `src/config.ts` procura exatamente este caminho sob
+# `process.resourcesPath`.
+#
+# O pacote de plataforma difere por SO, então cada bloco (win/mac/linux) declara o
+# seu. Só as CLIs `codex` e `claude` continuam sendo BYO — elas carregam o login
+# do usuário e não podem ser embutidas (ver o wizard de 1ª execução).
+extraResources:
+  - from: node_modules/gpt-image-2-skill
+    to: wrapper/node_modules/gpt-image-2-skill
 
 win:
   target:
     - nsis
+  extraResources:
+    - from: node_modules/gpt-image-2-skill
+      to: wrapper/node_modules/gpt-image-2-skill
+    - from: node_modules/gpt-image-2-skill-windows-x64-msvc
+      to: wrapper/node_modules/gpt-image-2-skill-windows-x64-msvc
+    # Codex CLI: entra SÓ para o login ChatGPT do wizard (src/lib/codexCli.ts).
+    # O `codex-code-mode-host` (~46MB) é do modo de execução de código, que o
+    # Ateliê nunca chama — fica de fora para não inchar o instalador.
+    - from: node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc
+      to: codex
+      filter:
+        - '**/*'
+        - '!bin/codex-code-mode-host*'
 
 mac:
   target:
     - dmg
   category: public.app-category.graphics-design
+  extraResources:
+    - from: node_modules/gpt-image-2-skill
+      to: wrapper/node_modules/gpt-image-2-skill
+    - from: node_modules/gpt-image-2-skill-darwin-arm64
+      to: wrapper/node_modules/gpt-image-2-skill-darwin-arm64
+    - from: node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin
+      to: codex
+      filter:
+        - '**/*'
+        - '!bin/codex-code-mode-host*'
 
 linux:
   target:
     - AppImage
   category: Graphics
+  extraResources:
+    - from: node_modules/gpt-image-2-skill
+      to: wrapper/node_modules/gpt-image-2-skill
+    - from: node_modules/gpt-image-2-skill-linux-x64-gnu
+      to: wrapper/node_modules/gpt-image-2-skill-linux-x64-gnu
+    - from: node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl
+      to: codex
+      filter:
+        - '**/*'
+        - '!bin/codex-code-mode-host*'
 
 nsis:
   oneClick: false
