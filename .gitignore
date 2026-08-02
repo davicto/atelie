@@ -12,3 +12,7 @@ dist-electron/
 release/
 ui/dist/
 ui/node_modules/
+
+# Credenciais locais (token de publicação). NUNCA versionar.
+.env.local
+.env

@@ -65,11 +65,29 @@ if (atras > 0) morrer(`sua main está ${atras} commit(s) atrás do GitHub.`, 'Ro
 
 if (sh('git', ['tag', '-l', `v${versao}`])) morrer(`a tag v${versao} já existe.`, 'Escolha outra versão.');
 
-const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+// O token pode vir do ambiente OU de `.env.local` (ignorado pelo Git). O arquivo
+// existe para o token não precisar passar por linha de comando nem por chat —
+// qualquer um dos dois o deixaria gravado em histórico.
+function tokenDoArquivo() {
+  const f = path.join(RAIZ, '.env.local');
+  if (!fs.existsSync(f)) return undefined;
+  const m = fs.readFileSync(f, 'utf8').match(/^\s*GH_TOKEN\s*=\s*(.+?)\s*$/m);
+  return m?.[1]?.replace(/^["']|["']$/g, '');
+}
+const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || tokenDoArquivo();
 if (!token && !dry) {
   morrer(
     'sem GH_TOKEN — não dá para publicar a Release.',
-    'Crie um token em github.com/settings/tokens?type=beta (Contents: Read and write no repo atelie) e rode:\n  $env:GH_TOKEN="seu_token"; npm run release',
+    [
+      'Crie um token em github.com/settings/tokens?type=beta',
+      '  (Only select repositories: atelie · Permissions → Contents: Read and write)',
+      '',
+      '  Depois crie um arquivo .env.local na raiz do projeto com UMA linha:',
+      '    GH_TOKEN=cole_o_token_aqui',
+      '',
+      '  Use um editor de texto, não a linha de comando: .env.local é ignorado pelo',
+      '  Git, mas um token digitado no terminal fica no histórico do shell.',
+    ].join('\n'),
   );
 }
 
@@ -114,6 +132,7 @@ try {
 
 // ── 5. Build + Release ───────────────────────────────────────────────────────
 console.log('\n▸ construindo e publicando o instalador (demora vários minutos)…\n');
+process.env.GH_TOKEN = token;
 shLoud('npm', ['run', 'dist', '--', '--publish', 'always']);
 
 console.log(`\n✓ Ateliê ${versao} publicado.
