@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { STYLE_ASSETS_DIR, STYLE_ASSETS_FILE, STYLES_FILE } from '../config';
+import { RESOURCES_DIR, SEEDED_STYLES_FILE, STYLE_ASSETS_DIR, STYLE_ASSETS_FILE, STYLES_FILE } from '../config';
 import { CATALOG } from '../styles/catalog';
+import { SEED_STYLES } from '../styles/seedStyles';
 import { renderTemplate } from '../styles/catalog.types';
 import type { StyleDef } from '../styles/catalog.types';
 
@@ -77,6 +78,85 @@ export function uniqueStyleId(desired: string): string {
     if (!taken.has(cand)) return cand;
   }
   return `${base}-${Date.now()}`;
+}
+
+/**
+ * Instala os estilos embarcados (SEED_STYLES) na primeira execução, para que
+ * apareçam como "meu estilo" em qualquer máquina que rode o app.
+ *
+ * Idempotente e RESPEITA A EXCLUSÃO: os ids já instalados ficam registrados em
+ * `seeded-styles.json`, então um estilo que o usuário apagou não ressuscita no
+ * próximo boot — sem esse registro a exclusão seria desfeita toda vez.
+ */
+export function seedBundledStyles(): void {
+  let jaFeitos: string[] = [];
+  try {
+    const raw = JSON.parse(fs.readFileSync(SEEDED_STYLES_FILE, 'utf8'));
+    if (Array.isArray(raw)) jaFeitos = raw.filter((x): x is string => typeof x === 'string');
+  } catch {
+    /* primeira execução */
+  }
+
+  const existentes = new Set(loadUserStyles().map((s) => s.id));
+  let mudou = false;
+
+  // ── Estilos do autor: entram como "meu estilo", com as refs ───────────────
+  for (const { style, refs: nomes } of SEED_STYLES) {
+    if (jaFeitos.includes(style.id) || existentes.has(style.id)) continue;
+    const refs = copiarAssets(style.id, (nomes ?? []).map((n) => path.join(style.id, n)));
+    saveUserStyle({ ...style, refs, criadoEm: new Date().toISOString() });
+    jaFeitos.push(style.id);
+    mudou = true;
+  }
+
+  // ── Capas do catálogo: evitam 45 min de geração numa instalação nova ──────
+  const semeadas = loadBuiltinRefs();
+  for (const s of CATALOG) {
+    const marca = `builtin:${s.id}`;
+    if (jaFeitos.includes(marca)) continue;
+    if ((semeadas[s.id] ?? []).some((r) => fs.existsSync(r))) continue;
+    const refs = copiarAssets(s.id, [`${s.id}.webp`]);
+    if (refs.length) setBuiltinRefs(s.id, refs);
+    jaFeitos.push(marca);
+    mudou = true;
+  }
+
+  if (mudou) {
+    try {
+      fs.mkdirSync(path.dirname(SEEDED_STYLES_FILE), { recursive: true });
+      fs.writeFileSync(SEEDED_STYLES_FILE, JSON.stringify(jaFeitos, null, 2));
+    } catch {
+      /* sem o registro, o pior caso é re-semear uma vez */
+    }
+  }
+}
+
+/**
+ * Copia assets embarcados para `~/.atelie/styles/<id>/`, devolvendo os destinos
+ * que deram certo. `relativos` são caminhos dentro de `assets/style-covers/`.
+ */
+function copiarAssets(styleId: string, relativos: string[]): string[] {
+  const bases = [
+    // app empacotado (electron-builder copia `assets/` para resources/app/)
+    RESOURCES_DIR ? path.join(RESOURCES_DIR, 'app', 'assets', 'style-covers') : undefined,
+    path.join(process.cwd(), 'assets', 'style-covers'),
+  ].filter((p): p is string => Boolean(p));
+
+  const out: string[] = [];
+  for (const rel of relativos) {
+    const origem = bases.map((b) => path.join(b, rel)).find((p) => fs.existsSync(p));
+    if (!origem) continue;
+    try {
+      const dir = styleAssetsDir(styleId);
+      fs.mkdirSync(dir, { recursive: true });
+      const dest = path.join(dir, path.basename(rel));
+      fs.copyFileSync(origem, dest);
+      out.push(dest);
+    } catch {
+      /* asset ilegível — segue sem ele */
+    }
+  }
+  return out;
 }
 
 /** Refs semeadas dos estilos do catálogo (id → caminhos). {} se ausente/corrompido. */

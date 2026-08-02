@@ -12,6 +12,10 @@ directories:
 files:
   - dist-electron/**
   - ui/dist/**
+  # Capas dos 29 estilos do catálogo + refs do estilo do autor (WebP, ~9 MB).
+  # Sem isto, uma instalação nova abriria com o portfólio inteiro sem imagem —
+  # e regerar as capas leva ~45 min de chamadas ao codex.
+  - assets/**
   - package.json
 
 # O servidor Fastify serve ui/dist do disco (createReadStream/@fastify/static).

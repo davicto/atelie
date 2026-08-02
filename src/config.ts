@@ -15,7 +15,8 @@ import { createRequire } from 'node:module';
 // copia a árvore do wrapper para `resources/wrapper/node_modules/` (extraResources),
 // preservando o layout que o `require.resolve` interno do pacote precisa para achar
 // o binário da plataforma.
-const RESOURCES_DIR = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+/** `resources/` do app empacotado; undefined em dev. */
+export const RESOURCES_DIR = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
 
 /** Caminho do bin do pacote npm em dev, via resolução real (imune a hoisting). */
 function wrapperDoNodeModules(): string | undefined {
@@ -54,5 +55,10 @@ export const STYLE_ASSETS_DIR = path.join(SESSIONS_ROOT, 'styles');
  * semeada continua sendo builtin — não vira "meu estilo" nem fica apagável.
  */
 export const STYLE_ASSETS_FILE = path.join(SESSIONS_ROOT, 'style-assets.json');
+/**
+ * Ids dos estilos embarcados já instalados. Existe para que apagar um estilo
+ * semeado seja definitivo — sem este registro ele voltaria no próximo boot.
+ */
+export const SEEDED_STYLES_FILE = path.join(SESSIONS_ROOT, 'seeded-styles.json');
 /** Projetos (elenco, sprites, briefings): ~/.atelie/projects/<id>/. */
 export const PROJECTS_DIR = path.join(SESSIONS_ROOT, 'projects');

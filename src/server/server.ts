@@ -16,6 +16,7 @@ import {
   getAllStyles,
   loadUserStyles,
   saveUserStyle,
+  seedBundledStyles,
   styleAssetsDir,
   uniqueStyleId,
 } from '../lib/userStyles';
@@ -847,6 +848,14 @@ async function apiRoutes(app: FastifyInstance): Promise<void> {
 
 /** Monta a instância Fastify (rotas + WS + estático + CORS localhost). Não escuta ainda. */
 export function createServer(): FastifyInstance {
+  // Instala os estilos embarcados antes de servir a primeira requisição, para que
+  // a tela de Estilos já os mostre na primeira abertura do app.
+  try {
+    seedBundledStyles();
+  } catch {
+    /* semeadura é conveniência: se falhar, o app abre igual, só sem esses estilos */
+  }
+
   // bodyLimit generoso: as imagens de referência (estilos e personagens) sobem
   // como data URL base64 dentro do JSON — o default de 1 MB do Fastify não serve.
   const app = Fastify({ logger: false, bodyLimit: 96 * 1024 * 1024 });

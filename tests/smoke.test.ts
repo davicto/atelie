@@ -371,6 +371,18 @@ async function main(): Promise<void> {
   ok((getAllStyles().find((s) => s.id === 'watercolor')!.refs ?? []).length === 0, 'ref semeada inexistente é filtrada');
   ok(Object.keys(loadBuiltinRefs()).includes('watercolor'), 'style-assets.json guarda o registro');
 
+  // estilos embarcados: instalam uma vez, não duplicam, e apagar é definitivo
+  const { seedBundledStyles, deleteUserStyle } = await import('../src/lib/userStyles');
+  seedBundledStyles();
+  const semeados = loadUserStyles();
+  ok(semeados.some((s) => s.id === 'aquarela-bosque'), 'estilo embarcado entra como estilo do usuário');
+  ok(getAllStyles().find((s) => s.id === 'aquarela-bosque')?.origem === 'user', 'embarcado aparece como "meu estilo"');
+  seedBundledStyles();
+  ok(loadUserStyles().length === semeados.length, 'semear duas vezes não duplica');
+  deleteUserStyle('aquarela-bosque');
+  seedBundledStyles();
+  ok(!loadUserStyles().some((s) => s.id === 'aquarela-bosque'), 'estilo embarcado apagado NÃO ressuscita no próximo boot');
+
   // project.json anterior à biblioteca (campo ausente) continua carregando
   const legado = path.join(HOME, 'projects', 'legado');
   fs.mkdirSync(legado, { recursive: true });
