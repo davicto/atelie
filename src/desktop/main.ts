@@ -125,13 +125,25 @@ async function bootstrap(): Promise<void> {
   createWindow(serverUrl);
   createTray(serverUrl);
 
-  // Auto-update só em produção e best-effort: sem feed publicado é no-op silencioso.
+  // Auto-update só em produção. O feed é o Releases do GitHub (electron-builder.yml
+  // → publish), e o repo é PÚBLICO de propósito: repo privado exigiria embutir um
+  // token no app, que qualquer um extrai do instalador.
+  //
+  // `electron-updater` PRECISA estar em `dependencies` (não devDependencies), senão
+  // o electron-builder não o embarca e este import falha em runtime — foi o que
+  // acontecia até 01/08/2026, e o catch mudo escondia isso.
   if (app.isPackaged) {
     try {
       const { autoUpdater } = await import('electron-updater');
+      autoUpdater.logger = null;
+      autoUpdater.on('error', (e) => console.error('[update] falhou:', e?.message ?? e));
+      autoUpdater.on('update-available', (i) => console.log('[update] versão nova:', i?.version));
+      autoUpdater.on('update-not-available', () => console.log('[update] já está na última versão'));
+      autoUpdater.on('update-downloaded', (i) => console.log('[update] baixada:', i?.version, '— instala ao fechar'));
       await autoUpdater.checkForUpdatesAndNotify();
-    } catch {
-      /* sem feed / offline — ignora */
+    } catch (e: any) {
+      // Falha de rede é normal (offline); módulo ausente é BUG de empacotamento.
+      console.error('[update] não foi possível verificar atualizações:', e?.message ?? e);
     }
   }
 }

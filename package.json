@@ -24,6 +24,7 @@
     "@fastify/websocket": "^11.3.0",
     "@openai/codex": "^0.145.0",
     "cross-spawn": "^7.0.6",
+    "electron-updater": "^6.8.9",
     "fastify": "^5.10.0",
     "gpt-image-2-skill": "^0.7.3",
     "ink": "^5.1.0",
@@ -38,7 +39,6 @@
     "@types/react": "^18.3.12",
     "electron": "^43.1.0",
     "electron-builder": "^26.15.3",
-    "electron-updater": "^6.8.9",
     "esbuild": "^0.28.1",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
