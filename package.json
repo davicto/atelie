@@ -20,6 +20,7 @@
     "dist": "npm run ui:build && npm run desktop:build && electron-builder"
   },
   "dependencies": {
+    "@anthropic-ai/claude-code": "^2.1.220",
     "@fastify/static": "^9.3.0",
     "@fastify/websocket": "^11.3.0",
     "@openai/codex": "^0.145.0",

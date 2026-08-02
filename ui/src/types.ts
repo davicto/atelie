@@ -30,11 +30,14 @@ export interface ImagemUpload {
   dataUrl: string;
 }
 
-// Onboarding: login ChatGPT pelo Codex CLI embutido (ver src/lib/codexEmbedded.ts).
+// Login das CLIs embutidas sem terminal (src/lib/{codex,claude}Embedded.ts).
 export interface LoginEmCurso {
   fase: 'iniciando' | 'aguardando-codigo' | 'concluido' | 'erro';
   url?: string;
+  /** Codex: código de dispositivo a conferir no navegador. */
   codigo?: string;
+  /** Claude: a CLI já pediu o código — libera o campo de colar. */
+  pedeCodigo?: boolean;
   mensagem?: string;
 }
 export interface CodexAuth {
@@ -43,6 +46,9 @@ export interface CodexAuth {
   detalhe: string;
   emCurso: LoginEmCurso | null;
   binEmbutido: boolean;
+  /** Só o claude devolve identidade no status. */
+  email?: string;
+  plano?: string;
 }
 
 export interface StyleInfo {
@@ -338,5 +344,6 @@ export interface SpriteResult {
 
 export type RunMessage =
   | { type: 'run'; payload: RunPayload }
-  | { type: 'serie-run'; payload: { spec: SerieSpec; size?: string; quality?: string } }
+  // `concurrency`: imagens simultâneas no codex (0 = ilimitado). Ausente = default das configurações.
+  | { type: 'serie-run'; payload: { spec: SerieSpec; size?: string; quality?: string; concurrency?: number } }
   | { type: 'sprite-run'; payload: { projectId: string; memberId: string; extra?: string; size?: string; quality?: string } };

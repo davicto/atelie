@@ -7,6 +7,14 @@ import fastifyStatic from '@fastify/static';
 
 import { checkEnvironment, desligarClisAusentes } from './env';
 import { abortarLogin, codexBin, iniciarLogin, loginEmCurso, loginStatus } from '../lib/codexEmbedded';
+import {
+  abortarLogin as claudeAbortarLogin,
+  claudeBin,
+  enviarCodigo as claudeEnviarCodigo,
+  iniciarLogin as claudeIniciarLogin,
+  loginEmCurso as claudeLoginEmCurso,
+  loginStatus as claudeLoginStatus,
+} from '../lib/claudeEmbedded';
 import { SESSIONS_ROOT } from '../config';
 import { sessionDir } from '../state/manifest';
 import { estimateSessionCost } from '../lib/cost';
@@ -422,6 +430,28 @@ async function apiRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/auth/codex/cancelar', async () => {
     abortarLogin();
+    return { ok: true };
+  });
+
+  // Claude: mesmo propósito, fluxo diferente. O codex usa código de dispositivo
+  // (a UI só espera); o `claude auth login` imprime a URL e BLOQUEIA aguardando o
+  // código colado no stdin — daí a rota /codigo, que não tem equivalente no codex.
+  app.get('/api/auth/claude', async () => ({
+    ...(await claudeLoginStatus()),
+    emCurso: claudeLoginEmCurso(),
+    binEmbutido: claudeBin() != null,
+  }));
+
+  app.post('/api/auth/claude/login', async () => claudeIniciarLogin());
+
+  app.post('/api/auth/claude/codigo', async (req, reply) => {
+    const codigo = String((req.body as { codigo?: string } | undefined)?.codigo ?? '').trim();
+    if (!codigo) return reply.code(400).send({ error: 'código é obrigatório' });
+    return claudeEnviarCodigo(codigo);
+  });
+
+  app.post('/api/auth/claude/cancelar', async () => {
+    claudeAbortarLogin();
     return { ok: true };
   });
 

@@ -31,8 +31,8 @@ asar: false
 # `process.resourcesPath`.
 #
 # O pacote de plataforma difere por SO, então cada bloco (win/mac/linux) declara o
-# seu. Só as CLIs `codex` e `claude` continuam sendo BYO — elas carregam o login
-# do usuário e não podem ser embutidas (ver o wizard de 1ª execução).
+# seu. `codex` e `claude` também vão embutidos: o BINÁRIO viaja, o LOGIN não —
+# cada usuário conecta a própria conta pelo botão "Conectar" da aba Ambiente.
 extraResources:
   - from: node_modules/gpt-image-2-skill
     to: wrapper/node_modules/gpt-image-2-skill
@@ -53,6 +53,11 @@ win:
       filter:
         - '**/*'
         - '!bin/codex-code-mode-host*'
+    # Claude Code: binário nativo (`bin/claude.exe`), não launcher Node — o app
+    # empacotado o chama direto. Habilita juiz, criar estilo com IA e cânone de
+    # série sem o usuário instalar nada. Resolvido por src/lib/claudeEmbedded.ts.
+    - from: node_modules/@anthropic-ai/claude-code/bin
+      to: claude/bin
 
 mac:
   target:

@@ -2,6 +2,7 @@ import { WRAPPER_CJS } from '../config';
 import { doctor, authInspect, backendVersion } from '../lib/imageBackend';
 import { loadSettings, saveSettings } from '../lib/settings';
 import { run } from '../lib/runner';
+import { claudeBinOuPath, loginStatus as claudeLoginStatus } from '../lib/claudeEmbedded';
 import { nodeBin, nodeSpawnEnv } from '../lib/nodeBin';
 
 // Checador de ambiente dos DOIS modos de auth (login das CLIs + chaves de API).
@@ -99,24 +100,32 @@ async function checkCodex(): Promise<CliStatus> {
 }
 
 async function checkClaude(): Promise<CliStatus> {
-  const v = await tryRun('claude', ['--version']);
+  const bin = claudeBinOuPath();
+  const v = await tryRun(bin, ['--version']);
   const instalada = v.ran;
-  // Não há check de login barato garantido; NÃO geramos nada. Se o binário existe,
-  // consideramos autenticada e deixamos o `detalhe` honesto sobre a limitação.
-  const autenticada = instalada;
+
+  // `claude auth status --json` responde de verdade (loggedIn, e-mail, plano) e é
+  // barato — não gera nada. Antes assumíamos "logado" só por o binário existir, o
+  // que fazia a tela mostrar tudo verde numa máquina sem login nenhum.
+  const auth = instalada ? await claudeLoginStatus() : null;
+  const autenticada = auth?.logado === true;
+
   const status: CliStatus = {
     id: 'claude',
     nome: 'Claude Code',
     instalada,
     autenticada,
-    detalhe: instalada
-      ? 'binário presente; login não é verificável sem consumir tokens (assumido ok)'
-      : 'claude não encontrado na PATH',
+    detalhe: !instalada
+      ? 'claude não encontrado (nem embutido, nem na PATH)'
+      : autenticada
+        ? `conectado${auth?.email ? ` como ${auth.email}` : ''}${auth?.plano ? ` · ${auth.plano}` : ''}`
+        : 'instalado, mas sem login',
     capacidades: ['juiz-claude', 'add-style', 'cânone-série'],
   };
   const versao = instalada ? firstLine(v.stdout || v.stderr) : undefined;
   if (versao) status.versao = versao;
-  if (!instalada) status.remediacao = ['Instale o Claude Code e rode `claude login`.'];
+  if (!instalada) status.remediacao = ['Instale o Claude Code (ou use o instalador do Ateliê, que já o embute).'];
+  else if (!autenticada) status.remediacao = ['Clique em “Conectar” no card ao lado — não precisa de terminal.'];
   return status;
 }
 

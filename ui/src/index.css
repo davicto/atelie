@@ -487,3 +487,15 @@ input, textarea, select { font: inherit; color: inherit; }
   .pers-row { grid-template-columns: 1fr; }
   .splat.green { display: none; }
 }
+
+/* ── Conectar CLI (aba Ambiente): login sem terminal ─────────────────────── */
+.conectar { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.conectar-passos {
+  display: flex; flex-direction: column; gap: 9px; align-items: flex-start;
+  padding: 12px 14px; border: 1px solid var(--line-accent); border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+/* URL de OAuth é longa e não tem espaços — sem o break ela estoura o card. */
+.conectar-link { font-size: 12px; word-break: break-all; color: var(--ink-blue); }
+.conectar-codigo { display: flex; align-items: center; gap: 8px; }
+.conectar-codigo b { font-size: 17px; letter-spacing: 0.14em; color: var(--ink-blue); }

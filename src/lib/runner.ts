@@ -9,12 +9,28 @@ import spawn from 'cross-spawn';
 export interface RunHandle {
   done: Promise<{ code: number | null; stdout: string; stderr: string }>;
   cancel: () => void;
+  /**
+   * Escreve no stdin de um processo iniciado com `stdinInterativo`. Devolve
+   * `false` se o stdin não está aberto. Existe para logins que só pedem o dado
+   * DEPOIS de imprimir algo — o `claude auth login` mostra a URL e então espera
+   * o código colado, o que `stdinData` (escrito e fechado na largada) não cobre.
+   */
+  escrever: (texto: string) => boolean;
 }
 
 export interface RunOpts {
   onStdoutLine?: (l: string) => void;
   onStderrLine?: (l: string) => void;
   stdinData?: string;
+  /** Mantém o stdin aberto para escrita posterior via `handle.escrever()`. */
+  stdinInterativo?: boolean;
+  /**
+   * Pedaço bruto de stdout/stderr, sem esperar quebra de linha. Necessário para
+   * PROMPTS: `claude auth login` escreve "Paste code here if prompted > " sem
+   * newline e trava esperando, então `onStdoutLine` só o entregaria quando o
+   * processo terminasse — tarde demais para a UI reagir.
+   */
+  onChunk?: (texto: string) => void;
   timeoutMs?: number;
   /** Diretório de trabalho do subprocesso (isola geração agy sob concorrência). */
   cwd?: string;
@@ -25,7 +41,7 @@ export interface RunOpts {
 }
 
 export function run(bin: string, args: string[], opts: RunOpts = {}): RunHandle {
-  const useStdin = opts.stdinData != null;
+  const useStdin = opts.stdinData != null || opts.stdinInterativo === true;
   const child = spawn(bin, args, {
     stdio: [useStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     shell: false,
@@ -80,6 +96,7 @@ export function run(bin: string, args: string[], opts: RunOpts = {}): RunHandle 
 
     child.stdout?.on('data', (d: string) => {
       stdout += d;
+      opts.onChunk?.(d);
       outRest += d;
       let idx: number;
       while ((idx = outRest.indexOf('\n')) !== -1) {
@@ -91,6 +108,7 @@ export function run(bin: string, args: string[], opts: RunOpts = {}): RunHandle 
 
     child.stderr?.on('data', (d: string) => {
       stderr += d;
+      opts.onChunk?.(d);
       errRest += d;
       let idx: number;
       while ((idx = errRest.indexOf('\n')) !== -1) {
@@ -115,11 +133,15 @@ export function run(bin: string, args: string[], opts: RunOpts = {}): RunHandle 
     if (useStdin && child.stdin) {
       // Sem handler 'error', um EPIPE (filho encerra antes de ler stdin) derruba o processo.
       child.stdin.on('error', () => {});
-      try {
-        child.stdin.write(opts.stdinData!);
-        child.stdin.end();
-      } catch {
-        /* filho já fechou o stdin — ignora */
+      if (opts.stdinData != null) {
+        try {
+          child.stdin.write(opts.stdinData);
+          // No modo interativo o stdin fica ABERTO: fechar aqui faria o filho ver
+          // EOF e desistir antes de o usuário ter o que colar.
+          if (!opts.stdinInterativo) child.stdin.end();
+        } catch {
+          /* filho já fechou o stdin — ignora */
+        }
       }
     }
   });
@@ -131,6 +153,15 @@ export function run(bin: string, args: string[], opts: RunOpts = {}): RunHandle 
         child.kill('SIGTERM');
       } catch {
         /* ignore */
+      }
+    },
+    escrever: (texto: string) => {
+      if (!child.stdin || child.stdin.destroyed) return false;
+      try {
+        child.stdin.write(texto.endsWith('\n') ? texto : texto + '\n');
+        return true;
+      } catch {
+        return false;
       }
     },
   };

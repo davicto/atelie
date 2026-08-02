@@ -15,6 +15,12 @@ check() { # nome  exit_esperado  comando...
 echo "── tsc --noEmit"
 if npx tsc --noEmit; then echo "  ok   tsc limpo"; else echo "  FALHA tsc"; FAIL=1; fi
 
+# A UI tem tsconfig próprio e NÃO entra no tsc acima; o build do Vite usa esbuild,
+# que transpila sem checar tipos. Sem esta linha, erro de tipo na UI passa batido
+# por build e suíte (foi o que aconteceu com o payload de `concurrency`).
+echo "── tsc --noEmit (ui)"
+if npx tsc --noEmit -p ui/tsconfig.json; then echo "  ok   tsc da ui limpo"; else echo "  FALHA tsc da ui"; FAIL=1; fi
+
 echo "── testes de fumaça (funções puras + fixtures de sessão)"
 if node_modules/.bin/tsx tests/smoke.test.ts; then :; else FAIL=1; fi
 

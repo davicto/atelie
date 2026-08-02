@@ -44,6 +44,12 @@ export const api = {
   codexAuth: () => req<CodexAuth>('/api/auth/codex'),
   codexLogin: () => req<LoginEmCurso>('/api/auth/codex/login', { method: 'POST' }),
   codexLoginCancelar: () => req<{ ok: boolean }>('/api/auth/codex/cancelar', { method: 'POST' }),
+  claudeAuth: () => req<CodexAuth>('/api/auth/claude'),
+  claudeLogin: () => req<LoginEmCurso>('/api/auth/claude/login', { method: 'POST' }),
+  /** Só o claude: a CLI bloqueia no stdin esperando o código do navegador. */
+  claudeCodigo: (codigo: string) =>
+    req<LoginEmCurso>('/api/auth/claude/codigo', { method: 'POST', body: JSON.stringify({ codigo }) }),
+  claudeLoginCancelar: () => req<{ ok: boolean }>('/api/auth/claude/cancelar', { method: 'POST' }),
   styles: () => req<StyleInfo[]>('/api/styles'),
   sessions: () => req<SessionSummary[]>('/api/sessions'),
   session: (id: string) => req<FullSession>(`/api/sessions/${encodeURIComponent(id)}`),
