@@ -22,3 +22,13 @@ export const SESSIONS_ROOT = process.env.ATELIE_HOME || path.join(os.homedir(), 
 export const SESSIONS_DIR = path.join(SESSIONS_ROOT, 'sessions');
 export const CONFIG_FILE = path.join(SESSIONS_ROOT, 'config.json');
 export const STYLES_FILE = path.join(SESSIONS_ROOT, 'styles.json');
+/** Imagens de referência dos estilos do usuário: ~/.atelie/styles/<id>/. */
+export const STYLE_ASSETS_DIR = path.join(SESSIONS_ROOT, 'styles');
+/**
+ * Refs dos estilos do CATÁLOGO (id → caminhos). Fica FORA do styles.json de
+ * propósito: o catálogo não é editável pelo usuário, então um builtin com capa
+ * semeada continua sendo builtin — não vira "meu estilo" nem fica apagável.
+ */
+export const STYLE_ASSETS_FILE = path.join(SESSIONS_ROOT, 'style-assets.json');
+/** Projetos (elenco, sprites, briefings): ~/.atelie/projects/<id>/. */
+export const PROJECTS_DIR = path.join(SESSIONS_ROOT, 'projects');

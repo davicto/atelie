@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { useRunSocket } from '../ws';
 import type { SerieResult, SerieSpec, StyleInfo } from '../types';
-import { Badge, Button, Console, Empty, ErrorBanner, Field, NotaBadge, ProgressList, Segmented, Thumb } from '../ui';
+import { Badge, Button, Console, Empty, ErrorBanner, Field, NotaBadge, ProgressList, Segmented, Thumb, WorkersField } from '../ui';
 
 interface PersonRow {
   nome: string;
@@ -24,10 +24,13 @@ export default function Serie() {
   const [panels, setPanels] = useState<PanelRow[]>([{ cena: '', personagens: '' }]);
   const [sheetBusy, setSheetBusy] = useState(false);
 
-  const run = useRunSocket<SerieResult>();
+  const run = useRunSocket<SerieResult>('serie-avulsa');
+  // Começa no default das configurações; o ajuste aqui vale só para esta corrida.
+  const [workers, setWorkers] = useState(0);
 
   useEffect(() => {
     api.styles().then(setStyles).catch(() => setStyles([]));
+    api.settings().then((s) => setWorkers(s.concurrency)).catch(() => {});
   }, []);
 
   const scenes = useMemo(() => scenesText.split('\n').map((l) => l.trim()).filter(Boolean), [scenesText]);
@@ -48,7 +51,7 @@ export default function Serie() {
 
   function generate() {
     if (!spec || run.running) return;
-    run.start({ type: 'serie-run', payload: { spec } });
+    run.start({ type: 'serie-run', payload: { spec, concurrency: workers } });
   }
 
   async function openGallery() {
@@ -137,11 +140,16 @@ export default function Serie() {
           </>
         )}
 
+        <div style={{ marginTop: 18, maxWidth: 520 }}>
+          <WorkersField value={workers} onChange={setWorkers} avisoEncadeamento />
+        </div>
+
         <div style={{ marginTop: 22, display: 'flex', gap: 12, alignItems: 'center' }}>
           <Button variant="primary" onClick={generate} disabled={!spec || run.running}>
             {run.running ? 'Gerando série…' : 'Gerar série'}
           </Button>
-          {run.running && <Button variant="ghost" onClick={run.cancel}>Cancelar</Button>}
+          {/* Fechar o socket não aborta o run no servidor — rótulo honesto. */}
+          {run.running && <Button variant="ghost" onClick={run.cancel}>Parar de acompanhar</Button>}
           {!run.running && (result || run.error) && <Button variant="ghost" onClick={run.reset}>Limpar</Button>}
           {!spec && <span className="subtle">preencha título, {mode === 'desc' ? 'descrição e ao menos uma cena' : 'um personagem e um painel'}.</span>}
         </div>

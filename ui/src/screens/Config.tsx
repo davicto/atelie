@@ -81,8 +81,10 @@ export default function Config() {
           <Field label="Nota mínima p/ aprovar">
             <input className="input num" type="number" min={0} max={10} value={num('approveThreshold')} onChange={(e) => set('approveThreshold', Number(e.target.value))} />
           </Field>
-          <Field label="Concorrência">
-            <input className="input num" type="number" min={1} value={num('concurrency')} onChange={(e) => set('concurrency', Number(e.target.value))} />
+          {/* min={1} antes tornava o valor 0 — ilimitado, o próprio default do
+              app — inalcançável pela UI. */}
+          <Field label="Workers (default)" hint="imagens simultâneas no codex · 0 = ilimitado">
+            <input className="input num" type="number" min={0} value={num('concurrency')} onChange={(e) => set('concurrency', Math.max(0, Number(e.target.value) || 0))} />
           </Field>
         </div>
         <div className="row" style={{ marginTop: 14 }}>

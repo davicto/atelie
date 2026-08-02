@@ -1,4 +1,10 @@
-import { spawn } from 'child_process';
+// `cross-spawn` em vez de `child_process.spawn`: no Windows as CLIs (`claude`,
+// `codex`, `agy`) são shims `.cmd`, que o spawn nativo não executa com
+// `shell:false` (ENOENT). Ele resolve o binário via PATH/PATHEXT e, quando é
+// `.cmd`/`.bat`, delega ao `cmd.exe` com o escape correto — o que `shell:true`
+// NÃO faria com segurança aqui, já que passamos prompts em linguagem natural
+// (aspas, parênteses, `%`) como argumento. Em POSIX é um passthrough.
+import spawn from 'cross-spawn';
 
 export interface RunHandle {
   done: Promise<{ code: number | null; stdout: string; stderr: string }>;

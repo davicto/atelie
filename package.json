@@ -13,6 +13,7 @@
     "web": "npm run ui:build && tsx src/server/serve.ts --port 4177",
     "typecheck": "tsc --noEmit",
     "test": "bash tests/run.sh",
+    "seed:style-refs": "tsx scripts/seed-style-refs.ts",
     "ui:build": "npm --prefix ui run build",
     "desktop:build": "node scripts/build-desktop.mjs",
     "desktop:dev": "npm run ui:build && npm run desktop:build && electron .",
@@ -21,6 +22,7 @@
   "dependencies": {
     "@fastify/static": "^9.3.0",
     "@fastify/websocket": "^11.3.0",
+    "cross-spawn": "^7.0.6",
     "fastify": "^5.10.0",
     "ink": "^5.1.0",
     "ink-spinner": "^5.0.0",
@@ -29,6 +31,7 @@
     "react": "^18.3.1"
   },
   "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.12",
     "electron": "^43.1.0",

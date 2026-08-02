@@ -111,6 +111,9 @@ export interface SerieSummary {
   personagens: number;
   paineis: number;
   aprovados: number;
+  projectId?: string;
+  /** Primeiro painel com imagem — capa da série nas listagens. */
+  capa: string | null;
 }
 
 /** Varre os serie.json sob ~/.atelie/series; ordena desc por createdAt. */
@@ -135,6 +138,8 @@ export function listSeries(): SerieSummary[] {
       personagens: serie.canon?.personagens?.length ?? 0,
       paineis: serie.paineis?.length ?? 0,
       aprovados: (serie.paineis ?? []).filter((p) => p.aprovado).length,
+      ...(serie.projectId ? { projectId: serie.projectId } : {}),
+      capa: (serie.paineis ?? []).find((p) => p.pngPath)?.pngPath ?? null,
     });
   }
   out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));

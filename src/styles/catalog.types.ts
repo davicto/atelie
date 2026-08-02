@@ -20,6 +20,13 @@ export interface StyleDef {
   defaults: StyleDefaults;
   /** Procedência: 'builtin' (CATALOG) ou 'user' (styles.json). Ausente = builtin. */
   origem?: 'builtin' | 'user';
+  /**
+   * Imagens de referência do estilo (absolutas, sob ~/.atelie/styles/<id>/).
+   * Alimentam o portfólio na UI; a primeira é a capa do card.
+   */
+  refs?: string[];
+  /** ISO de criação — só estilos do usuário. */
+  criadoEm?: string;
 }
 
 export interface PromptSlots {

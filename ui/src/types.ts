@@ -24,12 +24,111 @@ export interface Environment {
   authMode: string;
 }
 
+/** Imagem escolhida no navegador, pronta para subir como data URL. */
+export interface ImagemUpload {
+  name?: string;
+  dataUrl: string;
+}
+
 export interface StyleInfo {
   id: string;
   nome: string;
   grupo: string;
   desc: string;
   origem: string;
+  /** Imagens de referência (absolutas sob ~/.atelie) — servidas por /api/file. */
+  refs: string[];
+  criadoEm: string | null;
+}
+
+export interface StyleDetail extends StyleInfo {
+  template: string;
+  defaults: {
+    size: string;
+    quality: string;
+    aspect: string;
+    background: string;
+    format: string;
+  };
+}
+
+export interface NovoEstilo {
+  nome?: string;
+  descricao: string;
+  grupo?: string;
+  template?: string;
+  autor?: 'claude' | 'manual';
+  imagens?: ImagemUpload[];
+}
+
+// ── Projetos ────────────────────────────────────────────────────────────────
+export interface CastMember {
+  id: string;
+  nome: string;
+  descricao: string;
+  refs: string[];
+  spritePng: string | null;
+  aprovado: boolean;
+  ajuste: string | null;
+  atualizadoEm: string | null;
+}
+
+export interface Briefing {
+  id: string;
+  texto: string;
+  personagens: string[];
+  criadoEm: string;
+}
+
+export interface ProjectSummary {
+  id: string;
+  nome: string;
+  descricao: string;
+  estiloId: string | null;
+  createdAt: string;
+  personagens: number;
+  aprovados: number;
+  briefings: number;
+  series: number;
+  imagens: number;
+  capa: string | null;
+}
+
+/** Uma imagem guardada no projeto — toda geração entra aqui, aprovada ou não. */
+export interface LibraryItem {
+  id: string;
+  png: string;
+  cena: string;
+  serieId?: string;
+  painel?: number;
+  tentativa?: number;
+  consistencia?: number | null;
+  cenaNota?: number | null;
+  aprovado: boolean;
+  criadoEm: string;
+}
+
+/** No detalhe, `briefings` deixa de ser contagem e vira a lista completa. */
+export interface ProjectFull extends Omit<ProjectSummary, 'briefings'> {
+  elenco: CastMember[];
+  briefings: Briefing[];
+  serieIds: string[];
+  biblioteca: LibraryItem[];
+  /** Capa escolhida à mão (id na biblioteca). Ausente = capa automática. */
+  capaItemId?: string;
+}
+
+export interface SerieSummary {
+  id: string;
+  titulo: string;
+  createdAt: string;
+  request: string;
+  estiloId: string;
+  personagens: number;
+  paineis: number;
+  aprovados: number;
+  projectId?: string;
+  capa: string | null;
 }
 
 export interface ClisResponse {
@@ -212,7 +311,17 @@ export interface SerieSpec {
     mundo?: string;
   };
   paineis: Array<{ cena: string; personagens?: string[] }>;
+  /** Com projectId o servidor usa o elenco APROVADO do projeto como âncoras. */
+  projectId?: string;
 }
+
+/** Resultado de `sprite-run` (geração/regeração do sprite de um personagem). */
+export interface SpriteResult {
+  projectId: string;
+  member: CastMember;
+}
+
 export type RunMessage =
   | { type: 'run'; payload: RunPayload }
-  | { type: 'serie-run'; payload: { spec: SerieSpec; size?: string; quality?: string } };
+  | { type: 'serie-run'; payload: { spec: SerieSpec; size?: string; quality?: string } }
+  | { type: 'sprite-run'; payload: { projectId: string; memberId: string; extra?: string; size?: string; quality?: string } };

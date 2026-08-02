@@ -21,12 +21,54 @@ awesome-gpt-image) numa galeria de **29 estilos fixos** com templates de prompt 
 - `node >= 20`, deps já instaladas (`npm install` se faltar `node_modules`).
 - Codex CLI logado (auth ChatGPT em `~/.codex/auth.json`). Teste: `npm start -- --doctor`.
 - `claude` CLI na PATH (o juiz usa `claude -p --input-format stream-json`).
-- O binário do `gpt-image-2-skill` faz bootstrap sozinho na primeira geração.
+- O wrapper `gpt-image-2-skill` é **opcional**: sem ele, a geração cai no backend
+  da CLI `codex` (ver abaixo).
+
+### Backend de geração
+Há dois caminhos, escolhidos automaticamente:
+
+| Backend | Quando | Como gera |
+|---|---|---|
+| `wrapper` | `WRAPPER_CJS` existe (ver `src/config.ts`) | `node gpt_image_2_skill.cjs … images generate` |
+| `cli` | wrapper ausente (default hoje) | `codex exec` + ferramenta embutida `image_gen` |
+
+`ATELIE_GEN_BACKEND=cli|wrapper` força um dos dois. O backend `cli` usa a auth do
+ChatGPT e **não consome `OPENAI_API_KEY`** (o fallback `scripts/image_gen.py` da
+skill `imagegen`, esse sim, cobraria API — nunca é acionado). Detalhes em
+`src/lib/codexCli.ts`.
 
 ## Uso
 ```bash
 npm start                 # abre a TUI (precisa de um terminal real — usa raw mode)
+npm run web               # compila a UI e sobe o app no navegador (http://127.0.0.1:4177)
 ```
+
+## Abrir no navegador
+```bash
+cd C:\.repo\atelie
+npm run web
+```
+O comando compila a UI e imprime a linha `Ateliê · servidor local em http://127.0.0.1:4177`.
+Abra **http://127.0.0.1:4177** no navegador (Ctrl+clique no link do terminal também funciona).
+O servidor fica em primeiro plano — `Ctrl+C` encerra.
+
+- Para escolher outra porta: `npm run ui:build && npx tsx src/server/serve.ts --port 5000`.
+- Sem `--port`, o servidor sobe numa porta efêmera e a imprime na mesma linha.
+- O bind é `127.0.0.1`: só a sua máquina alcança, não a rede.
+- Já mexeu no código da UI? Rode `npm run ui:build` de novo (ou `npm run web`) antes de recarregar.
+
+### O que tem na UI web
+| Tela | Para quê |
+|---|---|
+| **Menu** | hub inicial; o logo do pincel, no topo, volta para cá de qualquer tela |
+| **Estilos** | portfólio: todos os estilos, detalhe com descrição + imagens de referência, seleção (que a tela Criar herda) e criação de estilos novos a partir de imagens + texto explicativo |
+| **Projetos** | um projeto por série: estilo, elenco de personagens (referências → **sprite** → validação) e briefings; gera a série reaproveitando os sprites validados |
+| **Criar** | imagem avulsa: pedido + estilos + N versões, com juiz |
+| **Série** | série livre, sem projeto, a partir de uma descrição |
+| **Sessões / Ambiente / Ajustes** | histórico, diagnóstico das CLIs e configurações |
+
+Os arquivos enviados pelo navegador ficam em `~/.atelie/styles/<estilo>/` (referências de
+estilo) e `~/.atelie/projects/<projeto>/cast/<personagem>/` (referências + `sprite.png`).
 
 ### Subcomandos de debug (não-interativos)
 ```bash
@@ -42,6 +84,20 @@ npm start -- --judge-file <png> --request "um gato de óculos lendo jornal" [--s
 | `ATELIE_JUDGE_MODEL` | `sonnet` | modelo do juiz (visão) |
 | `ATELIE_CONCURRENCY` | `0` | jobs de geração em paralelo (`0` = todos de uma vez) |
 | `ATELIE_AUTO_OPEN` | `1` | abre a pasta publicada ao fim de cada geração (`0` desliga; na CLI, `--no-open`) |
+
+## Projetos, elenco e sprites
+Um **projeto** (`~/.atelie/projects/<id>/project.json`) guarda:
+- o **estilo** de ilustração escolhido no portfólio;
+- o **elenco**: cada personagem tem as imagens de referência que você subiu e um **sprite**
+  (folha de personagem com poses e expressões). Com referências, o sprite sai por
+  `images edit` multi-referência; sem elas, por `images generate` a partir da descrição;
+- os **briefings**: uma linha por imagem da série;
+- os ids das séries geradas ali dentro.
+
+O sprite nasce sempre **reprovado**: regerar zera a validação. Só personagem validado vira
+âncora da série — e, nesse caso, a série **não regera** a âncora (economiza uma imagem e
+mantém exatamente o que você aprovou). Âncora é caminho de arquivo e nunca é aceita do
+cliente: o servidor resolve o sprite a partir do elenco aprovado do projeto.
 
 ## Saídas
 Cada sessão vive em `~/.atelie/sessions/<id>/`:

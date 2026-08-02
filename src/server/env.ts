@@ -1,5 +1,5 @@
 import { WRAPPER_CJS } from '../config';
-import { doctor, authInspect } from '../lib/imageBackend';
+import { doctor, authInspect, backendVersion } from '../lib/imageBackend';
 import { loadSettings } from '../lib/settings';
 import { run } from '../lib/runner';
 import { nodeBin, nodeSpawnEnv } from '../lib/nodeBin';
@@ -54,6 +54,10 @@ function firstLine(s: string): string | undefined {
 
 /** Tenta extrair a versão do wrapper (`--version`), tolerando JSON ou texto puro. */
 async function codexVersion(): Promise<string | undefined> {
+  // Sob o backend CLI a versão vem da própria `codex`; só o wrapper precisa do
+  // parsing de envelope abaixo (que, sem wrapper, devolvia uma linha de stack do Node).
+  const viaCli = await backendVersion();
+  if (viaCli) return viaCli;
   const p = await tryRun(nodeBin(), [WRAPPER_CJS, '--json', '--version'], 5000, nodeSpawnEnv());
   if (!p.ran) return undefined;
   const out = (p.stdout || p.stderr).trim();

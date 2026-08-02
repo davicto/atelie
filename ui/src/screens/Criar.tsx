@@ -4,6 +4,7 @@ import { useRunSocket } from '../ws';
 import type { ClisResponse, PanelVote, RunResult, Settings, StyleInfo, VerdictJson } from '../types';
 import { Badge, Button, Console, Empty, ErrorBanner, Field, Loading, NotaBadge, ProgressList, Segmented, Thumb } from '../ui';
 import { cx, fmtDuration } from '../util';
+import { lerSelecao } from './Estilos';
 
 const SIZE_PRESETS = [
   { label: 'Quadrado', value: '1024x1024' },
@@ -19,7 +20,8 @@ export default function Criar() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
   const [prompt, setPrompt] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Herda o que foi marcado no portfólio de estilos.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(lerSelecao()));
   const [versions, setVersions] = useState(2);
   const genProvider = 'codex' as const;
   const [judgeMode, setJudgeMode] = useState<'painel' | 'unico'>('painel');
@@ -29,13 +31,15 @@ export default function Criar() {
   const [iterate, setIterate] = useState(0);
   const [sheetBusy, setSheetBusy] = useState(false);
 
-  const run = useRunSocket<RunResult>();
+  const run = useRunSocket<RunResult>('criar');
 
   useEffect(() => {
     (async () => {
       try {
         const [s, c, cfg] = await Promise.all([api.styles(), api.clis(), api.settings()]);
         setStyles(s);
+        // Estilo apagado depois de selecionado no portfólio não pode ficar preso na seleção.
+        setSelected((prev) => new Set([...prev].filter((id) => s.some((x) => x.id === id))));
         setClis(c);
         setSettings(cfg);
         setVersions(cfg.defaultVersionsPerStyle);

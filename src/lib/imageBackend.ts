@@ -3,6 +3,23 @@ import { WRAPPER_CJS } from '../config';
 import type { GenJob, GenMeta, ProgressEvent } from '../types';
 import { run } from './runner';
 import { nodeBin, nodeSpawnEnv } from './nodeBin';
+import { generateViaCli, doctorViaCli, authInspectViaCli, versionViaCli } from './codexCli';
+
+/**
+ * Qual backend usar: o wrapper `gpt_image_2_skill.cjs` (histórico) ou a CLI
+ * `codex` direto (lib/codexCli.ts).
+ *
+ * Default: wrapper se ele existir, senão CLI. Assim máquinas que ainda têm o
+ * wrapper mantêm o comportamento antigo, e as que não têm (o caso desde a
+ * reorganização de 26/07/2026) passam a funcionar sozinhas.
+ * `ATELIE_GEN_BACKEND=cli|wrapper` força um dos dois.
+ */
+function usarCli(): boolean {
+  const forcado = process.env.ATELIE_GEN_BACKEND;
+  if (forcado === 'cli') return true;
+  if (forcado === 'wrapper') return false;
+  return !fs.existsSync(WRAPPER_CJS);
+}
 
 /** Aspect → dimensão concreta múltipla de 16 (só DICA no Codex, mas passamos). */
 export function aspectToSize(aspect: string): string {
@@ -73,6 +90,7 @@ export async function generate(
   onProgress?: (e: ProgressEvent) => void,
   signal?: AbortSignal,
 ): Promise<{ pngPath: string; meta: GenMeta }> {
+  if (usarCli()) return generateViaCli(job, sizeAlias, quality, onProgress, signal);
   const size = resolveSize(sizeAlias);
   const args = [
     WRAPPER_CJS,
@@ -172,6 +190,7 @@ export async function edit(
 
 /** Força o wrapper a resolver o runtime e reporta o provider selecionado. */
 export async function doctor(): Promise<{ resolved: string; ok: boolean }> {
+  if (usarCli()) return doctorViaCli();
   try {
     const { stdout } = await run(nodeBin(), [WRAPPER_CJS, '--json', 'doctor'], { env: nodeSpawnEnv() }).done;
     const json = JSON.parse(stdout.trim());
@@ -181,8 +200,18 @@ export async function doctor(): Promise<{ resolved: string; ok: boolean }> {
   }
 }
 
+/**
+ * Versão do backend de geração em uso, para o doctor. Sob o backend CLI é a
+ * versão da própria `codex`; sob o wrapper, `undefined` (quem sabe extrair o
+ * formato do envelope é o chamador, em server/env.ts).
+ */
+export async function backendVersion(): Promise<string | undefined> {
+  return usarCli() ? versionViaCli() : undefined;
+}
+
 /** Checa se a auth do Codex está pronta. */
 export async function authInspect(): Promise<{ codexReady: boolean }> {
+  if (usarCli()) return authInspectViaCli();
   try {
     const { stdout } = await run(nodeBin(), [WRAPPER_CJS, '--json', 'auth', 'inspect'], { env: nodeSpawnEnv() }).done;
     const json = JSON.parse(stdout.trim());

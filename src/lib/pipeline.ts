@@ -4,6 +4,7 @@ import { publishSession } from './contactSheet';
 import { judgeOne, judgePanel } from './judgeProviders';
 import { compose } from './promptComposer';
 import { buildJobs, totalVersions, type Versions } from './distribute';
+import { runPool } from './pool';
 import { findStyle } from './userStyles';
 import { assertJudgeEnabled, enabledJudgePanel, loadSettings, resolveEnabledGenProvider } from './settings';
 import { SessionLogger } from './logger';
@@ -73,24 +74,6 @@ export interface IterationResult {
   results: JobResult[];
   best?: JobResult;
   durationMs: number;
-}
-
-/**
- * Pool de concorrência manual. `limit <= 0` significa SEM LIMITE: dispara todos
- * os jobs de uma vez (o antigo default "2 por vez" foi eliminado).
- */
-async function runPool<T>(items: T[], limit: number, worker: (item: T, i: number) => Promise<void>): Promise<void> {
-  if (items.length === 0) return;
-  let idx = 0;
-  const width = limit > 0 ? Math.min(limit, items.length) : items.length;
-  const runners = Array.from({ length: width }, async () => {
-    for (;;) {
-      const i = idx++;
-      if (i >= items.length) break;
-      await worker(items[i], i);
-    }
-  });
-  await Promise.all(runners);
 }
 
 function pickBest(results: JobResult[]): JobResult | undefined {

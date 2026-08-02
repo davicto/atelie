@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { generate as codexGenerate } from '../imageBackend';
 import { loadSettings } from '../settings';
+import { subjectAnchor } from '../promptComposer';
 import { buildCanonBlock } from './canon';
 import { judgeConsistency } from './consistencyJudge';
 import { appendSerie, panelPath, saveSerie } from './store';
@@ -25,6 +26,19 @@ export interface PanelOpts {
    * da rodada anterior já na 1ª tentativa desta chamada.
    */
   seedFeedback?: ConsistencyVerdict;
+  /**
+   * Chamado ao fim de CADA tentativa, aprovada ou não, com a imagem ainda em
+   * disco. A próxima tentativa sobrescreve `pngPath`, então quem quiser guardar
+   * a imagem precisa copiá-la aqui — é o gancho que alimenta a biblioteca do
+   * projeto. Erros do callback não derrubam a geração.
+   */
+  onAttempt?: (info: {
+    painel: Painel;
+    tentativa: number;
+    pngPath: string;
+    veredito: ConsistencyVerdict;
+    aprovado: boolean;
+  }) => void;
 }
 
 function nameKey(s: string): string {
@@ -45,9 +59,24 @@ function anchorRefs(canon: Canon, personagens: string[]): string[] {
 /**
  * Prompt do painel: bloco invariante do cânone + a CENA; se houver feedback de drift,
  * anexa a sugestão de ajuste e as diferenças a corrigir vs a referência.
+ *
+ * Na re-tentativa, o `prompt_sugerido` do juiz (cena reescrita para corrigir os drifts)
+ * substitui a cena — como o promptComposer já faz no fluxo avulso. O bloco do cânone
+ * NUNCA sai da frente: o juiz não conhece o cânone e reescreve só a cena. Se a reescrita
+ * não mencionar a âncora do pedido original, prefixa "mantendo <âncora>," para o sujeito
+ * não derivar de uma tentativa para a outra.
  */
 export function buildPanelPrompt(canon: Canon, painel: Painel, feedback?: ConsistencyVerdict): string {
-  let prompt = buildCanonBlock(canon, painel.personagens) + ' CENA: ' + painel.cena;
+  let cena = painel.cena;
+  const sugerido = feedback?.prompt_sugerido?.trim();
+  if (sugerido) {
+    const anchor = subjectAnchor(painel.cena);
+    cena =
+      anchor && !sugerido.toLowerCase().includes(anchor.toLowerCase())
+        ? `mantendo ${anchor}, ${sugerido}`
+        : sugerido;
+  }
+  let prompt = buildCanonBlock(canon, painel.personagens) + ' CENA: ' + cena;
   if (feedback && (feedback.sugestao_melhoria?.trim() || (feedback.drifts && feedback.drifts.length))) {
     prompt +=
       ' AJUSTE (mantendo consistência): ' +
@@ -133,6 +162,15 @@ export async function generatePanel(serie: Serie, painel: Painel, opts: PanelOpt
 
     const okC = v.consistencia != null && v.consistencia >= consistThreshold;
     const okS = v.cenaNota != null && v.cenaNota >= cenaThreshold;
+
+    // Antes do break/próxima volta: a imagem desta tentativa só existe até a
+    // seguinte sobrescrever o arquivo.
+    try {
+      opts.onAttempt?.({ painel, tentativa, pngPath, veredito: v, aprovado: okC && okS });
+    } catch (e: any) {
+      opts.onLog?.(`aviso: não foi possível arquivar a tentativa ${tentativa} do painel ${painel.n}: ${String(e?.message ?? e)}`);
+    }
+
     if (okC && okS) {
       painel.aprovado = true;
       break;

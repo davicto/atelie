@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   const { buildJobs } = await import('../src/lib/distribute');
   const { resolveGenProvider, getGenProvider } = await import('../src/lib/genProviders');
   const { detectImageFormat } = await import('../src/lib/imageFormat');
-  const { isKebab, slugify, saveUserStyle, getAllStyles, findStyle } = await import('../src/lib/userStyles');
+  const { isKebab, slugify, saveUserStyle, getAllStyles, findStyle, styleLock } = await import('../src/lib/userStyles');
   const { loadSettings, saveSettings } = await import('../src/lib/settings');
   const { CATALOG } = await import('../src/styles/catalog');
   const { createSession } = await import('../src/state/session');
@@ -62,6 +62,13 @@ async function main(): Promise<void> {
   const rt = renderTemplate('{subject} numa {scene}.{extra}', { subject: 'gato', scene: '', extra: '' });
   ok(!rt.includes('{'), 'renderTemplate remove placeholders', rt);
   ok(!/\s{2,}/.test(rt), 'renderTemplate sem espaços duplos', rt);
+
+  // ── styleLock (trava compartilhada por sprite/âncora/painel) ───────
+  const lockWc = styleLock('watercolor');
+  ok(lockWc.includes('cold-press'), 'styleLock traz o template (não o desc)', lockWc);
+  ok(!lockWc.includes('{'), 'styleLock sem placeholders', lockWc);
+  ok(!/\.\s*\./.test(lockWc) && !/\s{2,}/.test(lockWc), 'styleLock sem pontuação/espaço órfão', lockWc);
+  ok(styleLock('nao-existe') === '' && styleLock(null) === '', 'styleLock estilo ausente → vazio');
 
   // ── promptComposer ─────────────────────────────────────────────────
   const style = CATALOG.find((s) => s.id === 'fotorrealista')!;
@@ -191,6 +198,24 @@ async function main(): Promise<void> {
   ok(shortSlug('uma xícara de café fumegante sobre a mesa de madeira').split('-').length <= 6, 'shortSlug é curto');
   ok(shortLabel('São Nicolau de Mira, bispo, em pé sobre um plinto').length <= 48, 'shortLabel limita o tamanho');
 
+  // ── sprite: o ajuste da regeração precisa vencer a trava IDENTICAL ─
+  const { buildSpritePrompt } = await import('../src/lib/sprite');
+  const membroFix: any = { nome: 'Mia', descricao: 'menina de óculos redondos' };
+  const spSem = buildSpritePrompt(membroFix, null, true);
+  ok(/Keep the character IDENTICAL/.test(spSem), 'sprite sem ajuste mantém a trava IDENTICAL', spSem);
+  ok(!spSem.includes('REQUIRED CHANGE'), 'sprite sem ajuste não inventa mudança');
+  const spCom = buildSpritePrompt(membroFix, null, true, 'cabelo mais curto');
+  ok(spCom.includes('REQUIRED CHANGE'), 'sprite com ajuste anuncia a mudança obrigatória', spCom);
+  ok(
+    spCom.indexOf('cabelo mais curto') < spCom.indexOf('Keep the character'),
+    'ajuste vem ANTES da trava (posição forte no prompt)',
+  );
+  ok(!/Keep the character IDENTICAL/.test(spCom), 'com ajuste, a trava absoluta some (senão contradiz o pedido)');
+  ok(/EXCEPT for the required change/.test(spCom), 'com ajuste, a trava abre exceção explícita');
+  ok(spCom.split('cabelo mais curto').length - 1 === 2, 'ajuste reforçado nos dois pontos do prompt');
+  const spSemRef = buildSpritePrompt(membroFix, null, false, 'sem chapéu');
+  ok(!spSemRef.includes('reference'), 'sem referência, o prompt não cita referência inexistente', spSemRef);
+
   // ── Série: buildCanonBlock / buildPanelPrompt / imageBackend refs ──
   const { buildCanonBlock } = await import('../src/lib/serie/canon');
   const { buildPanelPrompt } = await import('../src/lib/serie/panel');
@@ -224,6 +249,15 @@ async function main(): Promise<void> {
   ok(pprompt.includes('CENA: Mia corre pela praça'), 'buildPanelPrompt inclui a cena');
   ok(!buildPanelPrompt(canonFix, painelFix).includes('AJUSTE'), 'buildPanelPrompt sem feedback não injeta AJUSTE');
 
+  // prompt_sugerido do juiz vira a CENA da re-tentativa, sem perder o cânone nem o sujeito
+  const fbSug: any = { ...fb, prompt_sugerido: 'Mia corre pela praça ao entardecer, óculos grossos' };
+  const pSug = buildPanelPrompt(canonFix, painelFix, fbSug);
+  ok(pSug.includes('ao entardecer'), 'buildPanelPrompt usa o prompt_sugerido', pSug);
+  ok(pSug.includes('round glasses') && /IDENTICAL/.test(pSug), 'buildPanelPrompt mantém o cânone com prompt_sugerido');
+  ok(pSug.includes('CENA: Mia corre pela praça ao entardecer'), 'prompt_sugerido que já cita a âncora não ganha prefixo', pSug);
+  const pDeriva = buildPanelPrompt(canonFix, painelFix, { ...fbSug, prompt_sugerido: 'uma paisagem qualquer' });
+  ok(pDeriva.includes('mantendo Mia corre pela praça'), 'prompt_sugerido que derivou ganha a âncora de volta', pDeriva);
+
   // montagem de argv do edit com múltiplas --ref-image
   ok(refImageArgs(['/a.png', '/b.png']).join(' ') === '--ref-image /a.png --ref-image /b.png', 'refImageArgs monta N --ref-image');
   ok(refImageArgs(['', '/c.png']).length === 2, 'refImageArgs pula caminho vazio');
@@ -253,6 +287,96 @@ async function main(): Promise<void> {
   const shtml = fs.readFileSync(buildSerieContactSheet(serieX.id), 'utf8');
   ok(!shtml.includes('<script>alert(1)</script>') && !shtml.includes('<script>alert(2)</script>') && !shtml.includes('<script>alert(3)</script>'), 'contact-sheet da série ESCAPA <script>');
   ok(shtml.includes('data:image/'), 'contact-sheet da série embute imagem base64');
+
+  // ── Pool de workers: 0 = ilimitado, e só 1 encadeia ────────────────
+  const { runPool, permiteEncadear } = await import('../src/lib/pool');
+  async function medirPico(limite: number, n: number): Promise<number> {
+    let vivos = 0, pico = 0;
+    await runPool(Array.from({ length: n }, (_, i) => i), limite, async () => {
+      vivos++; pico = Math.max(pico, vivos);
+      await new Promise((r) => setTimeout(r, 12));
+      vivos--;
+    });
+    return pico;
+  }
+  ok((await medirPico(0, 6)) === 6, 'limite 0 dispara TODOS de uma vez (ilimitado)');
+  ok((await medirPico(1, 6)) === 1, 'limite 1 roda estritamente em sequência');
+  ok((await medirPico(3, 6)) === 3, 'limite 3 mantém no máximo 3 vivos');
+  ok((await medirPico(9, 4)) === 4, 'limite maior que a fila não estoura a fila');
+  const ordem: number[] = [];
+  await runPool([0, 1, 2, 3], 1, async (i) => { ordem.push(i); });
+  ok(ordem.join() === '0,1,2,3', 'sequencial preserva a ordem dos painéis');
+  await runPool([], 0, async () => { throw new Error('não deve rodar'); });
+  ok(true, 'pool com lista vazia não executa nada');
+  ok(permiteEncadear(1) && !permiteEncadear(0) && !permiteEncadear(2), 'só 1 worker permite encadear painel N→N-1');
+
+  // ── Biblioteca do projeto: a cópia sobrevive ao overwrite da tentativa ─
+  const {
+    createProject, loadProject, saveProject, addToLibrary, removeFromLibrary, libraryDir,
+  } = await import('../src/lib/projects');
+  const proj = createProject('Projeto Teste', 'desc', 'watercolor');
+  ok(loadProject(proj.id)?.biblioteca.length === 0, 'projeto novo nasce com biblioteca vazia');
+
+  // simula o painel: MESMO caminho reescrito a cada tentativa
+  const painelPng = path.join(HOME, 'painel-volatil.png');
+  fs.writeFileSync(painelPng, Buffer.concat([PNG_MAGIC, Buffer.from('tentativa-1')]));
+  const it1 = addToLibrary(proj.id, painelPng, { cena: 'Mia corre', painel: 1, tentativa: 1, consistencia: 6, cenaNota: 7, aprovado: false });
+  ok(!!it1 && fs.existsSync(it1.png), 'addToLibrary copia o arquivo para library/');
+  ok(it1!.png !== painelPng && it1!.png.startsWith(libraryDir(proj.id)), 'a cópia mora na biblioteca, não na série');
+
+  fs.writeFileSync(painelPng, Buffer.concat([PNG_MAGIC, Buffer.from('tentativa-2')])); // overwrite
+  const it2 = addToLibrary(proj.id, painelPng, { cena: 'Mia corre', painel: 1, tentativa: 2, consistencia: 9, cenaNota: 8, aprovado: true });
+  ok(fs.readFileSync(it1!.png).includes('tentativa-1'), 'tentativa 1 SOBREVIVE ao overwrite da tentativa 2');
+  ok(fs.readFileSync(it2!.png).includes('tentativa-2'), 'tentativa 2 guardada em arquivo próprio');
+
+  const comDuas = loadProject(proj.id)!;
+  ok(comDuas.biblioteca.length === 2, 'as duas tentativas estão no índice');
+  ok(comDuas.biblioteca[0].id === it2!.id, 'mais recente primeiro');
+  ok(comDuas.biblioteca.filter((b) => b.aprovado).length === 1, 'a reprovada foi guardada mesmo assim');
+
+  // addToLibrary relê o projeto do disco: edições concorrentes não são perdidas
+  const durante = loadProject(proj.id)!;
+  durante.nome = 'Renomeado durante o run';
+  saveProject(durante);
+  fs.writeFileSync(painelPng, Buffer.concat([PNG_MAGIC, Buffer.from('t3')]));
+  addToLibrary(proj.id, painelPng, { cena: 'x', painel: 2, tentativa: 1, consistencia: null, cenaNota: null, aprovado: false });
+  ok(loadProject(proj.id)?.nome === 'Renomeado durante o run', 'addToLibrary não sobrescreve edição concorrente do projeto');
+
+  const antesDeRemover = loadProject(proj.id)!;
+  const alvo = antesDeRemover.biblioteca.find((b) => b.id === it1!.id)!;
+  ok(removeFromLibrary(antesDeRemover, alvo.id), 'removeFromLibrary encontra a entrada');
+  ok(!fs.existsSync(alvo.png), 'removeFromLibrary apaga o arquivo');
+  ok(loadProject(proj.id)!.biblioteca.every((b) => b.id !== alvo.id), 'entrada removida do índice em disco');
+  ok(!removeFromLibrary(loadProject(proj.id)!, 'nao-existe'), 'remover id inexistente → false');
+
+  // capa: escolha do usuário vence a heurística, e cai de volta se a imagem sumir
+  const { summarize } = await import('../src/lib/projects');
+  const comCapa = loadProject(proj.id)!;
+  const escolhida = comCapa.biblioteca[0];
+  comCapa.capaItemId = escolhida.id;
+  comCapa.elenco.push({ id: 'x', nome: 'X', descricao: '', refs: [], spritePng: pf, aprovado: true });
+  saveProject(comCapa);
+  ok(summarize(loadProject(proj.id)!).capa === escolhida.png, 'capa escolhida vence o sprite aprovado');
+  removeFromLibrary(loadProject(proj.id)!, escolhida.id);
+  ok(summarize(loadProject(proj.id)!).capa === pf, 'capa volta à heurística se a imagem escolhida some');
+
+  // refs semeadas do catálogo NÃO transformam o builtin em "meu estilo"
+  const { setBuiltinRefs, loadBuiltinRefs, loadUserStyles } = await import('../src/lib/userStyles');
+  setBuiltinRefs('watercolor', [pf]);
+  const wc = getAllStyles().find((s) => s.id === 'watercolor')!;
+  ok(wc.origem === 'builtin', 'estilo semeado continua sendo do catálogo', String(wc.origem));
+  ok(wc.refs?.[0] === pf, 'refs semeadas aparecem no estilo do catálogo');
+  ok(loadUserStyles().every((s) => s.id !== 'watercolor'), 'seed NÃO escreve no styles.json do usuário');
+  setBuiltinRefs('watercolor', ['/caminho/que/nao/existe.png']);
+  ok((getAllStyles().find((s) => s.id === 'watercolor')!.refs ?? []).length === 0, 'ref semeada inexistente é filtrada');
+  ok(Object.keys(loadBuiltinRefs()).includes('watercolor'), 'style-assets.json guarda o registro');
+
+  // project.json anterior à biblioteca (campo ausente) continua carregando
+  const legado = path.join(HOME, 'projects', 'legado');
+  fs.mkdirSync(legado, { recursive: true });
+  fs.writeFileSync(path.join(legado, 'project.json'), JSON.stringify({ id: 'legado', nome: 'Antigo', elenco: [], briefings: [], serieIds: ['s1'] }));
+  const velho = loadProject('legado');
+  ok(!!velho && Array.isArray(velho.biblioteca) && velho.biblioteca.length === 0, 'project.json sem biblioteca carrega com lista vazia');
 
   // ── resumo ─────────────────────────────────────────────────────────
   console.log(`\nPASSOU: ${pass}  FALHOU: ${fails.length}`);

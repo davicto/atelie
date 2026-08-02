@@ -31,6 +31,16 @@ export function fileUrl(p: string): string {
   return `/api/file?path=${encodeURIComponent(p)}`;
 }
 
+/** File → data URL (`data:image/png;base64,…`), o formato que as rotas aceitam. */
+export function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error(`não foi possível ler "${file.name}"`));
+    r.readAsDataURL(file);
+  });
+}
+
 export function notaClass(nota: number | null | undefined): string {
   if (nota == null) return 'na';
   if (nota >= 7) return 'ok';

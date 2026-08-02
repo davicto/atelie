@@ -54,8 +54,14 @@ function buildBytesRubric(canon: Canon, cena: string, k: number): string {
   return [
     'Você é um diretor de arte avaliando a COERÊNCIA de uma série ilustrada.',
     `As primeiras ${k} imagem(ns) são a REFERÊNCIA (âncoras dos personagens); a ÚLTIMA imagem é o NOVO painel a avaliar.`,
-    canonSummary(canon, cena),
+    // A âncora é um character/sprite sheet (grade de poses em fundo neutro) e o painel
+    // é uma cena — sem esta instrução o juiz desconta a diferença de formato e a nota
+    // de consistência fica com teto artificial, que nenhuma tentativa consegue subir.
+    'A REFERÊNCIA é uma FOLHA DE PERSONAGEM (character sheet): grade de poses e expressões em fundo neutro, sem cenário.',
+    'Isso é esperado e NÃO é um defeito do painel. Compare APENAS a identidade do personagem (rosto, cabelo, cor de pele, roupa, acessórios) e o estilo de arte (linha, textura, paleta, sombreamento).',
+    'IGNORE por completo, e não liste como drift: layout em grade vs cena única, número de poses, enquadramento, ângulo, pose, expressão, fundo, cenário e iluminação da cena.',
     'Avalie se o personagem/estilo do novo painel se mantém IDÊNTICO à(s) referência(s) e se a cena foi cumprida; seja crítico e específico.',
+    canonSummary(canon, cena),
     SCHEMA,
   ].join(' ');
 }

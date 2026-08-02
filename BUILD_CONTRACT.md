@@ -15,6 +15,33 @@ em foreground neste ambiente (node v22.18, npm 11.14, `claude` v2.1.204).
 
   Executar com `node <WRAPPER_CJS> ...`. O binário Rust já faz bootstrap sozinho (baixou e rodou). Auth Codex = ChatGPT (plan Plus); token expirado é auto-refreshado pelo próprio wrapper (visto no evento `auth.refresh.completed`). SEM `OPENAI_API_KEY`.
 
+## Backend `cli` — geração via `codex exec` (VERIFICADO 28/07/2026, codex-cli 0.145.0, Windows)
+Usado quando o `WRAPPER_CJS` não existe (default hoje). Implementação: `src/lib/codexCli.ts`.
+```
+codex exec --json --skip-git-repo-check -s read-only [-i <ref.png> …] -
+# instrução vai por STDIN
+```
+REGRAS TRAVADAS (aprendidas na verificação):
+1. **A instrução vai por STDIN (`-`), NUNCA como argumento.** No Windows as CLIs são shims `.cmd` e o
+   `cmd.exe` **TRUNCA o argumento na primeira quebra de linha** — comprovado: `['linha1\nlinha2']` chega
+   como `["linha1"]`. Com a instrução em argv o prompt chegava mutilado e o modelo inventava a cena
+   (pedi "gato de óculos lendo jornal" e veio um átrio de biblioteca). Por stdin não há escape de shell.
+2. `codex exec` **TRAVA** se o stdin ficar aberto sem dados (`Reading additional input from stdin...`).
+   `run()` usa `stdio:'ignore'` quando não há `stdinData`, então só passa a esperar quando de fato escrevemos.
+3. O tool embutido `image_gen` **não aceita caminho de destino**: salva sempre em
+   `<CODEX_HOME>/generated_images/<thread_id>/<call_id>.png`. O `thread_id` (do evento
+   `thread.started`) é a ÂNCORA para achar o arquivo — a prosa da mensagem final também cita o caminho,
+   mas é texto de LLM e não é confiável. Copiamos por cima de `job.outPath`.
+4. Eventos JSONL em **stdout** (um por linha): `thread.started` (traz `thread_id`) → `turn.started` →
+   `item.started`/`item.completed` (`item.type`: `agent_message` | `command_execution`) → `turn.completed`.
+5. O agente costuma emitir uma `agent_message` ANTES de trabalhar → o progresso precisa ser **monotônico**
+   (senão a barra salta 85% → 25% → 85%).
+6. Transparência: `gpt-image-2` **não** tem fundo transparente nativo. O caminho suportado é chroma-key
+   verde + recorte local com `<CODEX_HOME>/skills/.system/imagegen/scripts/remove_chroma_key.py` (Python).
+7. Auth: `codex login status` **MENTE** — ele só lê o `auth.json` local e responde "Logged in" mesmo com o
+   token invalidado no servidor (visto em 28/07/2026: `token_invalidated` + `refresh_token_invalidated`).
+   O erro real só aparece na primeira geração, como 401 → mapeado para `auth_missing`.
+
 ## Geração — comando EXATO (verificado, exit 0, PNG gerado)
 ```
 node <WRAPPER_CJS> --json --json-events --provider codex images generate \

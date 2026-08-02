@@ -150,6 +150,8 @@ export interface Serie {
   request: string;
   canon: Canon;
   paineis: Painel[];
+  /** Projeto dono, quando a série nasceu da tela de um projeto. */
+  projectId?: string;
 }
 
 export interface Session {
