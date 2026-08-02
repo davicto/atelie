@@ -11,6 +11,7 @@ import Criar from './screens/Criar';
 import Serie from './screens/Serie';
 import Sessoes from './screens/Sessoes';
 import Config from './screens/Config';
+import Bemvindo from './screens/Bemvindo';
 
 export type Route = 'menu' | 'estilos' | 'projetos' | 'projeto' | 'criar' | 'serie' | 'sessoes' | 'ambiente' | 'config';
 
@@ -31,6 +32,21 @@ export default function App() {
   const [route, setRoute] = useState<Route>('menu');
   const [projetoId, setProjetoId] = useState<string | null>(null);
   const [health, setHealth] = useState<'ok' | 'err' | 'idle'>('idle');
+  // `null` = ainda não sabemos se falta login; o wizard só some quando há sessão
+  // ChatGPT (ou quando o usuário escolhe seguir assim mesmo).
+  const [precisaOnboarding, setPrecisaOnboarding] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void api
+      .codexAuth()
+      .then((a) => alive && setPrecisaOnboarding(!a.logado))
+      // Se a sonda falhar, não bloqueamos o app: o Dashboard já reporta o ambiente.
+      .catch(() => alive && setPrecisaOnboarding(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const goto = useCallback<Goto>((r, id) => {
     setProjetoId(id ?? null);
@@ -55,6 +71,8 @@ export default function App() {
       clearInterval(t);
     };
   }, []);
+
+  if (precisaOnboarding) return <Bemvindo onPronto={() => setPrecisaOnboarding(false)} />;
 
   return (
     <>

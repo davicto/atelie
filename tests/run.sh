@@ -18,6 +18,9 @@ if npx tsc --noEmit; then echo "  ok   tsc limpo"; else echo "  FALHA tsc"; FAIL
 echo "── testes de fumaça (funções puras + fixtures de sessão)"
 if node_modules/.bin/tsx tests/smoke.test.ts; then :; else FAIL=1; fi
 
+echo "── parser do login por código de dispositivo (wizard de 1ª execução)"
+if node_modules/.bin/tsx tests/codexlogin.test.ts; then :; else FAIL=1; fi
+
 echo "── CLI: validação/erros (exit 1) e sucesso (exit 0)"
 check "run sem --prompt → erro"        1 at --run --styles fotorrealista --versions 1
 check "continue sessão inexistente"    1 at --continue ZZZ-nao-existe

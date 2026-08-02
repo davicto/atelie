@@ -37,6 +37,30 @@ ChatGPT e **não consome `OPENAI_API_KEY`** (o fallback `scripts/image_gen.py` d
 skill `imagegen`, esse sim, cobraria API — nunca é acionado). Detalhes em
 `src/lib/codexCli.ts`.
 
+## Instalar (usuário final)
+
+Baixe o instalador da [página de releases](https://github.com/davicto/atelie/releases)
+— `Atelie-Setup-<versão>.exe` no Windows — e execute. **Não é preciso instalar Node,
+Codex CLI nem nada antes**: o app já vem com o motor de geração e o componente de login.
+
+Na primeira abertura, o Ateliê pede para conectar a conta **ChatGPT**: ele mostra um
+código curto e um link; você confirma no navegador e pronto. É a única credencial
+obrigatória — é ela que habilita tanto gerar quanto avaliar as imagens.
+
+> O Windows pode exibir um aviso do SmartScreen ("aplicativo não reconhecido"), porque o
+> instalador não tem assinatura digital paga. Clique em **Mais informações → Executar assim
+> mesmo**.
+
+O **Claude Code** é opcional e só entra em dois recursos: criar estilos novos e o cânone de
+série. Sem ele o app gera, avalia e melhora imagens normalmente.
+
+## Requisitos (desenvolvimento)
+- `node >= 20`, deps instaladas (`npm install`).
+- Login ChatGPT ativo (`~/.codex/auth.json`). Teste: `npm start -- --doctor`.
+- O wrapper `gpt-image-2-skill` e o Codex CLI vêm como dependências npm — nada de
+  instalação manual.
+- `claude` CLI na PATH apenas para o juiz Claude e o `--add-style`.
+
 ## Uso
 ```bash
 npm start                 # abre a TUI (precisa de um terminal real — usa raw mode)
@@ -141,11 +165,22 @@ Releases multiplataforma saem via CI: `git tag vX.Y.Z && git push --tags` dispar
 Releases (feed do `electron-updater`). Em produção o app checa update no start
 (`checkForUpdatesAndNotify`, no-op enquanto não há release publicada).
 
-### Requisitos (importante)
-As CLIs (`codex`/`claude`/`agy`) e o wrapper `gpt-image-2` **são do usuário** — não
-vêm empacotados no MVP. Precisam estar instalados e logados na máquina de destino.
-O caminho do wrapper (`WRAPPER_CJS` em `src/config.ts`) é absoluto; empacotá-lo
-(via `extraResources`) fica para uma fase futura. Ver `docs/DESKTOP_ARCHITECTURE.md`.
+### O que vai dentro do pacote
+`extraResources` (em `electron-builder.yml`) embute dois binários nativos, por plataforma:
+
+| Recurso | Caminho no pacote | Para quê |
+|---|---|---|
+| wrapper `gpt-image-2-skill` | `resources/wrapper/node_modules/…` | gerar e julgar imagens |
+| `codex` | `resources/codex/bin/codex[.exe]` | **só** o login ChatGPT do wizard |
+
+Ambos vêm de dependências npm com binário por SO/arch, então o CI monta o pacote certo
+em cada runner. `src/config.ts` e `src/lib/codexCli.ts` procuram primeiro esses caminhos
+sob `process.resourcesPath` e caem para o `node_modules` local em dev. Do Codex CLI
+excluímos o `codex-code-mode-host` (~46 MB), que o Ateliê nunca chama.
+
+O `claude` continua sendo BYO: carrega o login do usuário e não faz sentido embutir. Se
+não estiver instalado, o servidor o desliga sozinho no boot (`desligarClisAusentes`), e o
+painel de juízes roda só com o Codex.
 
 Em produção não há `node` garantido na PATH: o main seta `ATELIE_NODE_BIN` para o
 próprio binário do Electron (`process.execPath`) e o motor spawna o wrapper com

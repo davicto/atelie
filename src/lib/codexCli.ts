@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { run } from './runner';
+import { codexBinOuPath } from './codexEmbedded';
 import type { GenJob, GenMeta, ProgressEvent } from '../types';
 
 // Backend de geração que fala com a CLI `codex` DIRETO, sem o wrapper
@@ -183,7 +184,7 @@ export async function generateViaCli(
   let threadId = '';
   let mensagemFinal = '';
 
-  const handle = run('codex', args, {
+  const handle = run(codexBinOuPath(), args, {
     // cwd neutro: o agente não tem o que fazer no repo do usuário, e
     // `--skip-git-repo-check` o libera de exigir um repositório git.
     cwd: os.tmpdir(),
@@ -271,7 +272,7 @@ export async function generateViaCli(
 /** Runtime disponível = a CLI `codex` responde a `--version`. */
 export async function doctorViaCli(): Promise<{ resolved: string; ok: boolean }> {
   try {
-    const r = await run('codex', ['--version'], { timeoutMs: 15_000 }).done;
+    const r = await run(codexBinOuPath(), ['--version'], { timeoutMs: 15_000 }).done;
     return { resolved: r.code === 0 ? 'codex-cli' : '', ok: r.code === 0 };
   } catch {
     return { resolved: '', ok: false };
@@ -281,7 +282,7 @@ export async function doctorViaCli(): Promise<{ resolved: string; ok: boolean }>
 /** Versão da CLI `codex` (ex.: "codex-cli 0.145.0"), para o doctor. */
 export async function versionViaCli(): Promise<string | undefined> {
   try {
-    const r = await run('codex', ['--version'], { timeoutMs: 15_000 }).done;
+    const r = await run(codexBinOuPath(), ['--version'], { timeoutMs: 15_000 }).done;
     const t = (r.stdout || r.stderr).trim().split('\n')[0]?.trim();
     return t || undefined;
   } catch {
@@ -298,7 +299,7 @@ export async function versionViaCli(): Promise<string | undefined> {
  */
 export async function authInspectViaCli(): Promise<{ codexReady: boolean }> {
   try {
-    const r = await run('codex', ['login', 'status'], { timeoutMs: 20_000 }).done;
+    const r = await run(codexBinOuPath(), ['login', 'status'], { timeoutMs: 20_000 }).done;
     return { codexReady: r.code === 0 && /logged in/i.test(r.stdout + r.stderr) };
   } catch {
     return { codexReady: false };

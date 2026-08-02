@@ -6,12 +6,16 @@ em foreground neste ambiente (node v22.18, npm 11.14, `claude` v2.1.204).
 ## Ambiente
 - `node`, `npm`, `npx` disponíveis. `tsx` entra como devDependency (rodar via `npx tsx`).
 - `claude` na PATH, v2.1.204, aceita `-p --input-format stream-json --output-format stream-json --verbose --model <m>`.
-- Wrapper de geração — `src/config.ts` resolve o primeiro caminho que existir:
+- Wrapper de geração — desde 28/07/2026 a fonte é o **pacote npm `gpt-image-2-skill`**
+  (dependência do projeto), que traz o binário Rust por SO/arch via `optionalDependencies`.
+  `src/config.ts` resolve o primeiro caminho que existir:
   1. `$ATELIE_WRAPPER_CJS` (override manual);
-  2. `Active/images-editor/gpt-image-2-skill/skills/gpt-image-2-skill/scripts/gpt_image_2_skill.cjs`
-     (o repo clonado original; **apagado na reorganização de 26/07/2026**, volta a valer se re-clonado);
-  3. `~/.local/lib/atelie/gpt_image_2_skill.cjs` — shim que repassa argv ao binário Rust
-     `~/.local/lib/atelie/gpt-image-2-skill` (v0.7.3, preservado do cache de download). Em uso hoje.
+  2. `<process.resourcesPath>/wrapper/node_modules/gpt-image-2-skill/bin/gpt-image-2-skill.js`
+     (app empacotado — ver `extraResources` no `electron-builder.yml`);
+  3. `node_modules/gpt-image-2-skill/bin/gpt-image-2-skill.js` (dev, via `require.resolve`);
+  4. `~/.local/lib/atelie/gpt_image_2_skill.cjs` — shim legado da instalação manual anterior.
+
+  Verificado em 28/07: `doctor` e uma geração real (`--gen-one`) passam pelo caminho (3).
 
   Executar com `node <WRAPPER_CJS> ...`. O binário Rust já faz bootstrap sozinho (baixou e rodou). Auth Codex = ChatGPT (plan Plus); token expirado é auto-refreshado pelo próprio wrapper (visto no evento `auth.refresh.completed`). SEM `OPENAI_API_KEY`.
 
@@ -41,6 +45,27 @@ REGRAS TRAVADAS (aprendidas na verificação):
 7. Auth: `codex login status` **MENTE** — ele só lê o `auth.json` local e responde "Logged in" mesmo com o
    token invalidado no servidor (visto em 28/07/2026: `token_invalidated` + `refresh_token_invalidated`).
    O erro real só aparece na primeira geração, como 401 → mapeado para `auth_missing`.
+
+## Login ChatGPT — VERIFICADO (codex v0.145.0, `CODEX_HOME` isolado)
+O app embute o Codex CLI **só** para gerar o `~/.codex/auth.json` que o wrapper consome.
+`codex login --device-auth` é o único fluxo que roda sem TTY e sem servidor local:
+```
+<codex> login --device-auth     # imprime URL + código; bloqueia até o usuário confirmar
+<codex> login status            # exit 0 + "Logged in using ChatGPT" quando há sessão
+```
+Saída REAL observada (com ANSI, mesmo sem TTY) — o parser em `src/lib/codexCli.ts` depende disto:
+```
+1. Open this link in your browser and sign in to your account
+   \e[94mhttps://auth.openai.com/codex/device\e[0m
+2. Enter this one-time code \e[90m(expires in 15 minutes)\e[0m
+   \e[94mWUYU-U4WYZ\e[0m
+```
+REGRAS TRAVADAS:
+1. **Tirar o ANSI antes de casar regex** (`semAnsi`) — sem isso nada casa.
+2. O código é `[A-Z0-9]{4,6}-[A-Z0-9]{4,6}` — blocos **assimétricos** (`WUYU-U4WYZ` é 4-5).
+   Um regex `{4}-{4}` falha silenciosamente e o wizard fica sem código.
+3. Fixtures desta saída estão em `tests/codexlogin.test.ts` — se o codex mudar o formato,
+   o teste quebra antes do usuário final travar.
 
 ## Geração — comando EXATO (verificado, exit 0, PNG gerado)
 ```

@@ -5,7 +5,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 
-import { checkEnvironment } from './env';
+import { checkEnvironment, desligarClisAusentes } from './env';
+import { abortarLogin, codexBin, iniciarLogin, loginEmCurso, loginStatus } from '../lib/codexEmbedded';
 import { SESSIONS_ROOT } from '../config';
 import { sessionDir } from '../state/manifest';
 import { estimateSessionCost } from '../lib/cost';
@@ -406,6 +407,22 @@ async function apiRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/health', async () => ({ ok: true }));
 
   app.get('/api/doctor', async () => checkEnvironment());
+
+  // ── Onboarding: login ChatGPT pelo Codex CLI embutido ────────────────────
+  // Estas rotas existem para o wizard de 1ª execução conseguir autenticar o
+  // usuário sem terminal. O login roda em background; a UI faz polling do status.
+  app.get('/api/auth/codex', async () => ({
+    ...(await loginStatus()),
+    emCurso: loginEmCurso(),
+    binEmbutido: codexBin() != null,
+  }));
+
+  app.post('/api/auth/codex/login', async () => iniciarLogin());
+
+  app.post('/api/auth/codex/cancelar', async () => {
+    abortarLogin();
+    return { ok: true };
+  });
 
   // Serve um arquivo do disco APENAS se estiver sob ~/.atelie (SESSIONS_ROOT/ATELIE_HOME).
   // Usado pelas <img> das sessões/séries e para abrir os contact-sheets no navegador.
@@ -865,6 +882,10 @@ export function createServer(): FastifyInstance {
 /** Sobe o servidor em 127.0.0.1 (porta efêmera se omitida) e devolve URL + close(). */
 export async function startServer(port?: number): Promise<{ url: string; port: number; close: () => Promise<void> }> {
   const app = createServer();
+  // Antes de aceitar tráfego: alinhar as feature-flags ao que existe na máquina,
+  // para uma instalação sem Claude Code não julgar com um provedor inexistente.
+  const desligadas = await desligarClisAusentes();
+  if (desligadas.length) console.log(`Ateliê · CLIs ausentes desativadas: ${desligadas.join(', ')}`);
   await app.listen({ port: port ?? 0, host: '127.0.0.1' });
   const addr = app.server.address();
   const actualPort = typeof addr === 'object' && addr ? addr.port : port ?? 0;

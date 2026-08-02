@@ -1,6 +1,6 @@
 import { WRAPPER_CJS } from '../config';
 import { doctor, authInspect, backendVersion } from '../lib/imageBackend';
-import { loadSettings } from '../lib/settings';
+import { loadSettings, saveSettings } from '../lib/settings';
 import { run } from '../lib/runner';
 import { nodeBin, nodeSpawnEnv } from '../lib/nodeBin';
 
@@ -154,6 +154,25 @@ function keyStatus(
   if (envVal && envVal.trim()) return { provider, presente: true, origem: 'env' };
   if (settingVal && settingVal.trim()) return { provider, presente: true, origem: 'settings' };
   return { provider, presente: false, origem: 'ausente' };
+}
+
+/**
+ * Desliga nas settings as CLIs que não estão instaladas na máquina. Roda no boot.
+ *
+ * Sem isso, numa instalação sem o Claude Code o painel de juízes continuaria
+ * chamando o juiz Claude a cada imagem: `safeJudgeOne` engole o erro, mas o
+ * usuário veria metade do painel falhando para sempre. Só DESLIGA — reativar é
+ * decisão do usuário nas Configurações, senão sobrescreveríamos a escolha dele.
+ */
+export async function desligarClisAusentes(): Promise<string[]> {
+  const settings = loadSettings();
+  const claude = await checkClaude();
+  const desligadas: string[] = [];
+  if (!claude.instalada && settings.enabledClis?.claude !== false) {
+    saveSettings({ ...settings, enabledClis: { ...settings.enabledClis, claude: false } });
+    desligadas.push('claude');
+  }
+  return desligadas;
 }
 
 export async function checkEnvironment(): Promise<Environment> {
