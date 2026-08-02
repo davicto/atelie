@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bash tests/run.sh",
     "release": "node scripts/release.mjs",
+    "token": "node scripts/token.mjs",
     "seed:style-refs": "tsx scripts/seed-style-refs.ts",
     "ui:build": "npm --prefix ui run build",
     "desktop:build": "node scripts/build-desktop.mjs",
